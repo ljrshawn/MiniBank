@@ -1,0 +1,17 @@
+@MiniBank.Api_HostAddress = http://localhost:5269
+
+GET {{MiniBank.Api_HostAddress}}/customers
+Accept: application/json
+
+###
+POST {{MiniBank.Api_HostAddress}}/customers
+Content-Type: application/json
+
+{
+    "firstName": "David",
+    "lastName": "Miller",
+    "email": "david.miller@example.com",
+    "passWord": "password123",
+    "taxFileNumber": "123-45-6789",
+    "phoneNumber": "333-333-3333"
+}   

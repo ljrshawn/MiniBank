@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "OLQOuce4DNI=",
+  "success": true,
+  "projectFilePath": "/Users/shawnlyu/VSCodeProjects/MiniBank/MiniBank.Api/MiniBank.Api.csproj",
+  "expectedPackageFiles": [
+    "/Users/shawnlyu/.nuget/packages/microsoft.aspnetcore.openapi/10.0.11/microsoft.aspnetcore.openapi.10.0.11.nupkg.sha512",
+    "/Users/shawnlyu/.nuget/packages/microsoft.openapi/2.7.5/microsoft.openapi.2.7.5.nupkg.sha512"
+  ],
+  "logs": []
+}
