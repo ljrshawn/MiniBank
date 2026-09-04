@@ -1,0 +1,62 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+
+# Visual Studio / VS Code / JetBrains
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sln.iml
+_ReSharper*/
+*.DotSettings.user
+
+# Test results and code coverage
+[Tt]est[Rr]esult*/
+[Cc]overage[Rr]eport*/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# NuGet packages and generated package artifacts
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Publish output
+[Pp]ublish/
+*.Publish.xml
+*.pubxml
+*.pubxml.user
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+*.pfx
+*.p12
+
+# Local databases and SQLite sidecar files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Operating-system files
+.DS_Store
+Thumbs.db
