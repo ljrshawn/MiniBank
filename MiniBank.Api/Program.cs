@@ -1,3 +1,4 @@
+using MiniBank.Api.Data;
 using MiniBank.Api.Endpoints;
 using MiniBank.Api.Services;
 
@@ -8,6 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
 builder.Services.AddScoped<CustomerService>();
+
+builder.AddAppDb();
 
 var app = builder.Build();
 
@@ -20,5 +23,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapCustomersEndpoints();
+
+app.Migrate();
 
 app.Run();
