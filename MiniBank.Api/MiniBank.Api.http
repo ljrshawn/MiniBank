@@ -1,6 +1,11 @@
 @MiniBank.Api_HostAddress = http://localhost:5269
+@customerId = 8a200906-8379-4a18-940b-1eec5d00192c
 
 GET {{MiniBank.Api_HostAddress}}/customers
+Accept: application/json
+
+###
+GET {{MiniBank.Api_HostAddress}}/customers/{{customerId}}
 Accept: application/json
 
 ###
@@ -9,9 +14,25 @@ Content-Type: application/json
 
 {
     "firstName": "David",
-    "lastName": "Miller",
-    "email": "david.miller@example.com",
+    "lastName": "Smith",
+    "email": "david.smith@example.com",
     "passWord": "password123",
     "taxFileNumber": "123-45-6789",
-    "phoneNumber": "333-333-3333"
-}   
+    "phoneNumber": "555-123-4567"
+}
+       
+###
+PUT {{MiniBank.Api_HostAddress}}/customers/{{customerId}}
+Content-Type: application/json
+
+{
+    "firstName": "David",
+    "lastName": "Smith",
+    "email": "david.smith1@example.com",
+    "passWord": "password123",
+    "taxFileNumber": "123-45-6789",
+    "phoneNumber": "555-123-4567"
+}
+
+###
+DELETE {{MiniBank.Api_HostAddress}}/customers/{{customerId}}

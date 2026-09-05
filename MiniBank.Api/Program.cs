@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddHttpLogging();
+
 builder.Services.AddScoped<CustomerService>();
 
 builder.AddAppDb();
@@ -20,6 +22,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseHttpLogging();
 app.UseHttpsRedirection();
 
 app.MapCustomersEndpoints();

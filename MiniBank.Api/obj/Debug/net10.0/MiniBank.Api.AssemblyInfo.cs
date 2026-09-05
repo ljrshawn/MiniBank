@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MiniBank.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dbf79defe923394e194b389de6908180d5e405ab")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aa1644a02f7e1ea3d10ce3f22bec6247e9b41fb3")]
 [assembly: System.Reflection.AssemblyProductAttribute("MiniBank.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MiniBank.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

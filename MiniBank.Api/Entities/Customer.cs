@@ -18,7 +18,7 @@ public class Customer
 
     public string PhoneNumber { get; set; } = null!;
 
-    public CustomerStatus AccountStatus { get; set; } = CustomerStatus.Active;
+    public CustomerStatus CustomerStatus { get; set; } = CustomerStatus.Active;
 
     public DateTime CreatedAt { get; set; }
 

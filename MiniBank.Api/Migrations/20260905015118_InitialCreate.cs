@@ -22,7 +22,7 @@ namespace MiniBank.Api.Migrations
                     PassWord = table.Column<string>(type: "TEXT", nullable: false),
                     TaxFileNumber = table.Column<string>(type: "TEXT", nullable: true),
                     PhoneNumber = table.Column<string>(type: "TEXT", nullable: false),
-                    AccountStatus = table.Column<int>(type: "INTEGER", nullable: false),
+                    CustomerStatus = table.Column<int>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
