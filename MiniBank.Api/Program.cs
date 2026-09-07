@@ -1,32 +1,53 @@
+using System.Diagnostics;
+using Microsoft.AspNetCore.Identity;
 using MiniBank.Api.Data;
-using MiniBank.Api.Endpoints;
-using MiniBank.Api.Services;
+using MiniBank.Api.Entities;
+using MiniBank.Api.Features.Customers;
 
-var builder = WebApplication.CreateBuilder(args);
+var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
+var builder = WebApplication.CreateBuilder(
+    args.Where(argument => argument != "--migrate-database").ToArray()
+);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-
-builder.Services.AddHttpLogging();
-
+builder.Services.AddValidation();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Instance = context.HttpContext.Request.Path;
+        context.ProblemDetails.Extensions["traceId"] =
+            Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+    }
+);
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 builder.Services.AddScoped<CustomerService>();
-
-builder.AddAppDb();
+builder.Services.AddAppDb(builder.Configuration);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+if (migrateDatabase)
+{
+    await app.MigrateDatabaseAsync();
+    app.Logger.LogInformation("Database migrations and credential upgrade completed.");
+    await app.DisposeAsync();
+    return;
+}
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    await app.MigrateDatabaseAsync();
 }
 
-app.UseHttpLogging();
 app.UseHttpsRedirection();
+app.MapCustomerEndpoints();
 
-app.MapCustomersEndpoints();
+await app.RunAsync();
 
-app.Migrate();
-
-app.Run();
+// Exposes the entry point to WebApplicationFactory integration tests.
+public partial class Program;

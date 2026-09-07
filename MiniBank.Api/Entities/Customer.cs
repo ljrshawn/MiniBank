@@ -2,7 +2,7 @@ using MiniBank.Api.Enums;
 
 namespace MiniBank.Api.Entities;
 
-public class Customer
+public sealed class Customer
 {
     public Guid Id { get; set; }
 
@@ -12,7 +12,7 @@ public class Customer
 
     public string Email { get; set; } = null!;
 
-    public string PassWord { get; set; } = null!;
+    public string PasswordHash { get; set; } = null!;
 
     public string? TaxFileNumber { get; set; }
 

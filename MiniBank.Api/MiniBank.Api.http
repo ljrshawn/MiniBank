@@ -1,38 +1,67 @@
-@MiniBank.Api_HostAddress = http://localhost:5269
-@customerId = 8a200906-8379-4a18-940b-1eec5d00192c
+@baseUrl = https://localhost:7136
+# Run Create customer first, then copy its response ID here.
+@customerId = 00000000-0000-0000-0000-000000000000
 
-GET {{MiniBank.Api_HostAddress}}/customers
-Accept: application/json
-
-###
-GET {{MiniBank.Api_HostAddress}}/customers/{{customerId}}
-Accept: application/json
-
-###
-POST {{MiniBank.Api_HostAddress}}/customers
+### Create customer — 201 with a Location header
+POST {{baseUrl}}/customers
 Content-Type: application/json
 
 {
-    "firstName": "David",
-    "lastName": "Smith",
-    "email": "david.smith@example.com",
-    "passWord": "password123",
-    "taxFileNumber": "123-45-6789",
-    "phoneNumber": "555-123-4567"
+  "firstName": "David",
+  "lastName": "Smith",
+  "email": "david.smith@example.com",
+  "password": "Local-demo-password-2026!",
+  "phoneNumber": "+61 412 345 678"
 }
-       
-###
-PUT {{MiniBank.Api_HostAddress}}/customers/{{customerId}}
+
+### List customers — pageSize defaults to 50 and cannot exceed 100
+GET {{baseUrl}}/customers?page=1&pageSize=20
+Accept: application/json
+
+### Get customer — 200, or 404 when the ID is unknown
+GET {{baseUrl}}/customers/{{customerId}}
+Accept: application/json
+
+### Replace profile — customerStatus is required: 0 Active, 1 Inactive, 2 Suspended
+PUT {{baseUrl}}/customers/{{customerId}}
 Content-Type: application/json
 
 {
-    "firstName": "David",
-    "lastName": "Smith",
-    "email": "david.smith1@example.com",
-    "passWord": "password123",
-    "taxFileNumber": "123-45-6789",
-    "phoneNumber": "555-123-4567"
+  "firstName": "David",
+  "lastName": "Jones",
+  "email": "david.smith@example.com",
+  "taxFileNumber": null,
+  "phoneNumber": "+61 412 345 678",
+  "customerStatus": 1
 }
 
-###
-DELETE {{MiniBank.Api_HostAddress}}/customers/{{customerId}}
+### Duplicate email — 409, including case differences
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "David",
+  "lastName": "Smith",
+  "email": "DAVID.SMITH@example.com",
+  "password": "Local-demo-password-2026!",
+  "phoneNumber": "+61 412 345 678"
+}
+
+### Invalid input — 400 with validation errors
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "",
+  "lastName": "Smith",
+  "email": "invalid-email",
+  "password": "short",
+  "phoneNumber": "invalid"
+}
+
+### Delete customer — 204, 404 if missing, or 409 if they have accounts
+DELETE {{baseUrl}}/customers/{{customerId}}
+
+### OpenAPI document — available in Development
+GET {{baseUrl}}/openapi/v1.json
+Accept: application/json
