@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Enums;
+using MiniBank.Api.Features.Accounts;
 using MiniBank.Api.Features.Customers;
 
 namespace MiniBank.Api.Tests;
@@ -32,7 +33,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     public async Task Create_returns_retrievable_resource_and_stores_a_password_hash()
     {
         var request = ValidRequest() with { FirstName = "  David  ", TaxFileNumber = "123456789" };
-        using var response = await _client.PostAsJsonAsync("/customers", request);
+        using var response = await _client.PostAsJsonAsync("/api/customers", request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var customer = await response.Content.ReadFromJsonAsync<CustomerResponse>();
@@ -40,7 +41,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         Assert.Equal("David", customer.FirstName);
         Assert.Equal(CustomerStatus.Active, customer.CustomerStatus);
         Assert.Equal(DateTimeKind.Utc, customer.CreatedAt.Kind);
-        Assert.EndsWith($"/customers/{customer.Id}", response.Headers.Location!.ToString());
+        Assert.EndsWith($"/api/customers/{customer.Id}", response.Headers.Location!.ToString());
 
         using var fetched = await _client.GetAsync(response.Headers.Location);
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
@@ -66,6 +67,77 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task Get_returns_an_empty_accounts_array_for_a_customer_without_accounts()
+    {
+        var customer = await CreateCustomerAsync(ValidRequest());
+
+        using var response = await _client.GetAsync($"/api/customers/{customer.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var details = await response.Content.ReadFromJsonAsync<CustomerResponse>();
+        Assert.NotNull(details);
+        Assert.Equal(customer.Id, details.Id);
+        Assert.Empty(details.Accounts);
+    }
+
+    [Fact]
+    public async Task Get_includes_only_the_customers_accounts_after_creation_without_a_profile_update()
+    {
+        var request = ValidRequest() with { TaxFileNumber = "123456789" };
+        var customer = await CreateCustomerAsync(request);
+        var otherCustomer = await CreateCustomerAsync(
+            ValidRequest() with
+            {
+                Email = "other@example.com",
+            }
+        );
+        var checking = await CreateAccountAsync(customer.Id, AccountType.Checking);
+        var savings = await CreateAccountAsync(customer.Id, AccountType.Savings);
+        await CreateAccountAsync(otherCustomer.Id, AccountType.Checking);
+
+        using var response = await _client.GetAsync($"/api/customers/{customer.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(
+            customer,
+            JsonSerializer.Deserialize<CustomerResponse>(body, JsonSerializerOptions.Web)
+        );
+        var details = JsonSerializer.Deserialize<CustomerResponse>(body, JsonSerializerOptions.Web);
+        Assert.NotNull(details);
+        Assert.Equal(
+            new[] { checking, savings }
+                .OrderBy(account => account.CreatedAt)
+                .ThenBy(account => account.Id),
+            details.Accounts
+        );
+        Assert.All(details.Accounts, account => Assert.Equal(customer.Id, account.CustomerId));
+
+        Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("taxFileNumber", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(request.Password, body);
+        Assert.DoesNotContain(request.TaxFileNumber!, body);
+        var json = JsonNode.Parse(body)!.AsObject();
+        Assert.All(
+            json!["accounts"]!.AsArray(),
+            account => Assert.False(account!.AsObject().ContainsKey("customer"))
+        );
+    }
+
+    [Fact]
+    public async Task List_keeps_profiles_compact_for_customers_with_accounts()
+    {
+        var customer = await CreateCustomerAsync(ValidRequest());
+        await CreateAccountAsync(customer.Id, AccountType.Checking);
+
+        var customers = await _client.GetFromJsonAsync<JsonArray>("/api/customers");
+
+        var profile = Assert.Single(customers!)!.AsObject();
+        Assert.Equal(customer.Id, profile["id"]!.GetValue<Guid>());
+        Assert.False(profile.ContainsKey("accounts"));
+    }
+
     [Theory]
     [InlineData("firstName", "")]
     [InlineData("firstName", "   ")]
@@ -85,7 +157,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             .SerializeToNode(ValidRequest(), JsonSerializerOptions.Web)!
             .AsObject();
         payload[property] = value;
-        using var response = await _client.PostAsJsonAsync("/customers", payload);
+        using var response = await _client.PostAsJsonAsync("/api/customers", payload);
 
         var problem = await AssertProblemAsync(response, HttpStatusCode.BadRequest);
         Assert.NotEmpty(problem["errors"]!.AsObject());
@@ -104,7 +176,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         payload.Remove("password");
         payload["passWord"] = password;
 
-        using var response = await _client.PostAsJsonAsync("/customers", payload);
+        using var response = await _client.PostAsJsonAsync("/api/customers", payload);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
@@ -115,7 +187,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     {
         await CreateCustomerAsync(ValidRequest());
         using var response = await _client.PostAsJsonAsync(
-            "/customers",
+            "/api/customers",
             ValidRequest() with
             {
                 Email = email,
@@ -131,9 +203,9 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     public async Task Concurrent_creates_allow_only_one_customer_with_the_same_email()
     {
         var responses = await Task.WhenAll(
-            _client.PostAsJsonAsync("/customers", ValidRequest()),
+            _client.PostAsJsonAsync("/api/customers", ValidRequest()),
             _client.PostAsJsonAsync(
-                "/customers",
+                "/api/customers",
                 ValidRequest() with
                 {
                     Email = "DAVID.SMITH@example.com",
@@ -168,7 +240,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             CustomerStatus = CustomerStatus.Suspended,
         };
 
-        using var response = await _client.PutAsJsonAsync($"/customers/{created.Id}", update);
+        using var response = await _client.PutAsJsonAsync($"/api/customers/{created.Id}", update);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var customer = await response.Content.ReadFromJsonAsync<CustomerResponse>();
         Assert.NotNull(customer);
@@ -208,7 +280,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             payload.Remove("customerStatus");
         }
 
-        using var response = await _client.PutAsJsonAsync($"/customers/{customer.Id}", payload);
+        using var response = await _client.PutAsJsonAsync($"/api/customers/{customer.Id}", payload);
         await AssertProblemAsync(response, HttpStatusCode.BadRequest);
     }
 
@@ -224,7 +296,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         );
 
         using var response = await _client.PutAsJsonAsync(
-            $"/customers/{second.Id}",
+            $"/api/customers/{second.Id}",
             ValidUpdate("DAVID.SMITH@example.com") with
             {
                 LastName = "Changed",
@@ -234,7 +306,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         await AssertProblemAsync(response, HttpStatusCode.Conflict);
         Assert.Equal(
             second,
-            await _client.GetFromJsonAsync<CustomerResponse>($"/customers/{second.Id}")
+            await _client.GetFromJsonAsync<CustomerResponse>($"/api/customers/{second.Id}")
         );
     }
 
@@ -246,7 +318,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     {
         using var request = new HttpRequestMessage(
             new HttpMethod(method),
-            $"/customers/{Guid.NewGuid()}"
+            $"/api/customers/{Guid.NewGuid()}"
         );
         if (method == "PUT")
         {
@@ -261,11 +333,11 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     public async Task Delete_removes_customer_and_subsequent_delete_returns_not_found()
     {
         var customer = await CreateCustomerAsync(ValidRequest());
-        using var response = await _client.DeleteAsync($"/customers/{customer.Id}");
+        using var response = await _client.DeleteAsync($"/api/customers/{customer.Id}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Empty(await response.Content.ReadAsStringAsync());
 
-        using var repeated = await _client.DeleteAsync($"/customers/{customer.Id}");
+        using var repeated = await _client.DeleteAsync($"/api/customers/{customer.Id}");
         await AssertProblemAsync(repeated, HttpStatusCode.NotFound);
     }
 
@@ -289,7 +361,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             await database.SaveChangesAsync();
         });
 
-        using var response = await _client.DeleteAsync($"/customers/{customer.Id}");
+        using var response = await _client.DeleteAsync($"/api/customers/{customer.Id}");
         await AssertProblemAsync(response, HttpStatusCode.Conflict);
         await _factory.InDatabaseAsync(async database =>
         {
@@ -315,13 +387,13 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         }
 
         var first = await _client.GetFromJsonAsync<List<CustomerResponse>>(
-            "/customers?page=1&pageSize=2"
+            "/api/customers?page=1&pageSize=2"
         );
         var second = await _client.GetFromJsonAsync<List<CustomerResponse>>(
-            "/customers?page=2&pageSize=2"
+            "/api/customers?page=2&pageSize=2"
         );
         var empty = await _client.GetFromJsonAsync<List<CustomerResponse>>(
-            "/customers?page=3&pageSize=2"
+            "/api/customers?page=3&pageSize=2"
         );
 
         Assert.Equal(customers.Take(2), first);
@@ -337,7 +409,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     [InlineData("page=abc")]
     public async Task List_rejects_invalid_pagination(string query)
     {
-        using var response = await _client.GetAsync($"/customers?{query}");
+        using var response = await _client.GetAsync($"/api/customers?{query}");
         await AssertProblemAsync(response, HttpStatusCode.BadRequest);
     }
 
@@ -348,15 +420,25 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
     public async Task Malformed_or_missing_body_returns_bad_request(string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var response = await _client.PostAsync("/customers", content);
+        using var response = await _client.PostAsync("/api/customers", content);
         await AssertProblemAsync(response, HttpStatusCode.BadRequest);
     }
 
     private async Task<CustomerResponse> CreateCustomerAsync(CreateCustomerRequest request)
     {
-        using var response = await _client.PostAsJsonAsync("/customers", request);
+        using var response = await _client.PostAsJsonAsync("/api/customers", request);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CustomerResponse>())!;
+    }
+
+    private async Task<AccountResponse> CreateAccountAsync(Guid customerId, AccountType accountType)
+    {
+        using var response = await _client.PostAsJsonAsync(
+            $"/api/accounts/customers/{customerId}",
+            new CreateAccountRequest { AccountType = accountType }
+        );
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<AccountResponse>())!;
     }
 
     private static CreateCustomerRequest ValidRequest() =>

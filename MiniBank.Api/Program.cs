@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
+using MiniBank.Api.Features.Accounts;
 using MiniBank.Api.Features.Customers;
 
 var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
@@ -23,6 +24,7 @@ builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadReq
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 builder.Services.AddScoped<CustomerService>();
+builder.Services.AddScoped<AccountService>();
 builder.Services.AddAppDb(builder.Configuration);
 
 var app = builder.Build();
@@ -45,7 +47,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.MapCustomerEndpoints();
+
+var api = app.MapGroup("/api");
+api.MapCustomerEndpoints();
+api.MapAccountEndpoints();
 
 await app.RunAsync();
 

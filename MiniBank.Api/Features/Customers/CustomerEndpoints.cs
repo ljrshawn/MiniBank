@@ -20,7 +20,7 @@ public static class CustomerEndpoints
         group
             .MapGet("/{id:guid}", GetCustomerByIdAsync)
             .WithName(GetCustomerRouteName)
-            .WithSummary("Get a customer by ID.")
+            .WithSummary("Get a customer by ID, including their accounts.")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group

@@ -12,15 +12,23 @@ public sealed class ApplicationTests
     {
         await using var factory = new MiniBankApiFactory("Development");
         using var client = factory.CreateApiClient();
-        Assert.Empty((await client.GetFromJsonAsync<JsonArray>("/customers"))!);
+        Assert.Empty((await client.GetFromJsonAsync<JsonArray>("/api/customers"))!);
 
         var document = await client.GetFromJsonAsync<JsonObject>("/openapi/v1.json");
         var paths = document!["paths"]!.AsObject();
-        Assert.Contains(paths, entry => entry.Key.TrimEnd('/') == "/customers");
-        Assert.Contains(paths, entry => entry.Key == "/customers/{id}");
-        var byId = paths["/customers/{id}"]!;
+        Assert.All(paths, entry => Assert.StartsWith("/api/", entry.Key));
+        Assert.Contains(paths, entry => entry.Key.TrimEnd('/') == "/api/customers");
+        Assert.Contains(paths, entry => entry.Key == "/api/customers/{id}");
+        var byId = paths["/api/customers/{id}"]!;
         Assert.NotNull(byId["put"]!["responses"]!["409"]);
         Assert.NotNull(byId["delete"]!["responses"]!["404"]);
+
+        var createAccount = paths["/api/accounts/customers/{customerId}"]!["post"]!;
+        Assert.NotNull(createAccount["responses"]!["201"]);
+        Assert.NotNull(createAccount["responses"]!["400"]);
+        Assert.NotNull(createAccount["responses"]!["404"]);
+        Assert.NotNull(createAccount["responses"]!["503"]);
+        Assert.NotNull(paths["/api/accounts/{id}"]!["get"]!["responses"]!["200"]);
     }
 
     [Fact]
@@ -33,7 +41,7 @@ public sealed class ApplicationTests
             Assert.Empty(await database.Database.GetAppliedMigrationsAsync());
         });
 
-        using var response = await client.GetAsync("/customers");
+        using var response = await client.GetAsync("/api/customers");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<JsonObject>();

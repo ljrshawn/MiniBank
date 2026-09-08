@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Enums;
+using MiniBank.Api.Features.Accounts;
 
 namespace MiniBank.Api.Features.Customers;
 
@@ -11,7 +12,8 @@ public sealed record CustomerResponse(
     string Email,
     string PhoneNumber,
     DateTime CreatedAt,
-    CustomerStatus CustomerStatus
+    CustomerStatus CustomerStatus,
+    IReadOnlyList<AccountResponse> Accounts
 )
 {
     internal static readonly Expression<Func<Customer, CustomerResponse>> Projection =
@@ -22,7 +24,13 @@ public sealed record CustomerResponse(
             customer.Email,
             customer.PhoneNumber,
             customer.CreatedAt,
-            customer.CustomerStatus
+            customer.CustomerStatus,
+            customer
+                .Accounts.AsQueryable()
+                .OrderBy(account => account.CreatedAt)
+                .ThenBy(account => account.Id)
+                .Select(AccountResponse.Projection)
+                .ToList()
         );
 
     internal static CustomerResponse FromEntity(Customer customer) => Map(customer);

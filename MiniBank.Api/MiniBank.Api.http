@@ -1,9 +1,11 @@
-@baseUrl = https://localhost:7136
+@baseUrl = http://localhost:5269
 # Run Create customer first, then copy its response ID here.
-@customerId = 00000000-0000-0000-0000-000000000000
+@customerId = 8d88ef05-d974-4a32-9d33-ea2e4c39f964
+# After creating an account, copy its response ID here.
+@accountId = 01a07f01-8fe0-7a09-98e1-12951a74723b
 
 ### Create customer — 201 with a Location header
-POST {{baseUrl}}/customers
+POST {{baseUrl}}/api/customers
 Content-Type: application/json
 
 {
@@ -15,15 +17,49 @@ Content-Type: application/json
 }
 
 ### List customers — pageSize defaults to 50 and cannot exceed 100
-GET {{baseUrl}}/customers?page=1&pageSize=20
+GET {{baseUrl}}/api/customers?page=1&pageSize=20
 Accept: application/json
 
-### Get customer — 200, or 404 when the ID is unknown
-GET {{baseUrl}}/customers/{{customerId}}
+### Get customer with accounts — 200 (accounts is [] if none), or 404 when the ID is unknown
+GET {{baseUrl}}/api/customers/{{customerId}}
 Accept: application/json
+
+### Create account for the customer — accountType: 0 Checking, 1 Savings
+# Returns 201 with Location: /api/accounts/{id}. All other account fields are server-generated.
+# Account numbers have nine digits. Collisions are retried up to five total save attempts; exhaustion returns 503.
+POST {{baseUrl}}/api/accounts/customers/{{customerId}}
+Content-Type: application/json
+
+{
+  "accountType": 1
+}
+
+### Get customer again — accounts now includes the created account; no customer PUT is needed
+GET {{baseUrl}}/api/customers/{{customerId}}
+Accept: application/json
+
+### Get account — use the Location from creation or copy its ID into accountId
+GET {{baseUrl}}/api/accounts/{{accountId}}
+Accept: application/json
+
+### Invalid account type — 400; no account is saved
+POST {{baseUrl}}/api/accounts/customers/{{customerId}}
+Content-Type: application/json
+
+{
+  "accountType": 999
+}
+
+### Unknown customer — 404; no account is saved
+POST {{baseUrl}}/api/accounts/customers/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+{
+  "accountType": 0
+}
 
 ### Replace profile — customerStatus is required: 0 Active, 1 Inactive, 2 Suspended
-PUT {{baseUrl}}/customers/{{customerId}}
+PUT {{baseUrl}}/api/customers/{{customerId}}
 Content-Type: application/json
 
 {
@@ -36,7 +72,7 @@ Content-Type: application/json
 }
 
 ### Duplicate email — 409, including case differences
-POST {{baseUrl}}/customers
+POST {{baseUrl}}/api/customers
 Content-Type: application/json
 
 {
@@ -48,7 +84,7 @@ Content-Type: application/json
 }
 
 ### Invalid input — 400 with validation errors
-POST {{baseUrl}}/customers
+POST {{baseUrl}}/api/customers
 Content-Type: application/json
 
 {
@@ -60,7 +96,7 @@ Content-Type: application/json
 }
 
 ### Delete customer — 204, 404 if missing, or 409 if they have accounts
-DELETE {{baseUrl}}/customers/{{customerId}}
+DELETE {{baseUrl}}/api/customers/{{customerId}}
 
 ### OpenAPI document — available in Development
 GET {{baseUrl}}/openapi/v1.json
