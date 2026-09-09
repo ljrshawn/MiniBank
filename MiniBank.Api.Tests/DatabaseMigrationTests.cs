@@ -83,6 +83,7 @@ public sealed class DatabaseMigrationTests : IAsyncLifetime
         Assert.Equal("123456789", customer.TaxFileNumber);
         Assert.Equal(DateTimeKind.Utc, customer.CreatedAt.Kind);
         Assert.Equal(123.45m, (await database.Accounts.SingleAsync()).Balance);
+        Assert.Empty(await database.BankTransactions.ToListAsync());
         Assert.Equal(
             PasswordVerificationResult.Success,
             new PasswordHasher<Customer>().VerifyHashedPassword(

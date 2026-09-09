@@ -29,6 +29,17 @@ public sealed class ApplicationTests
         Assert.NotNull(createAccount["responses"]!["404"]);
         Assert.NotNull(createAccount["responses"]!["503"]);
         Assert.NotNull(paths["/api/accounts/{id}"]!["get"]!["responses"]!["200"]);
+        foreach (var operation in new[] { "deposit", "withdraw" })
+        {
+            var responses = paths[$"/api/accounts/{{id}}/{operation}"]!["post"]!["responses"]!;
+            Assert.NotNull(responses["200"]);
+            Assert.NotNull(responses["400"]);
+            Assert.NotNull(responses["404"]);
+            Assert.NotNull(responses["409"]);
+        }
+        var history = paths["/api/accounts/{id}/transactions"]!["get"]!["responses"]!;
+        Assert.NotNull(history["200"]);
+        Assert.NotNull(history["404"]);
     }
 
     [Fact]

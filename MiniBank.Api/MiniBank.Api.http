@@ -42,6 +42,37 @@ Accept: application/json
 GET {{baseUrl}}/api/accounts/{{accountId}}
 Accept: application/json
 
+### Deposit — 200 with the saved transaction and resulting balance
+# Amount must be > 0 and <= 999999999999. Description is optional (maximum 255 characters).
+POST {{baseUrl}}/api/accounts/{{accountId}}/deposit
+Content-Type: application/json
+
+{
+  "amount": 100.50,
+  "description": "Opening deposit"
+}
+
+### Withdraw — 200, or 400 for insufficient funds; default description is Withdrawal
+# Both writes return 404 for a missing account and 409 if the balance changes concurrently.
+POST {{baseUrl}}/api/accounts/{{accountId}}/withdraw
+Content-Type: application/json
+
+{
+  "amount": 25.75
+}
+
+### Transaction history — newest first; [] for an account without transactions, 404 if missing
+GET {{baseUrl}}/api/accounts/{{accountId}}/transactions
+Accept: application/json
+
+### Invalid withdrawal — 400; balance and history are unchanged
+POST {{baseUrl}}/api/accounts/{{accountId}}/withdraw
+Content-Type: application/json
+
+{
+  "amount": -10
+}
+
 ### Invalid account type — 400; no account is saved
 POST {{baseUrl}}/api/accounts/customers/{{customerId}}
 Content-Type: application/json

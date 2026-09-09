@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
@@ -80,6 +81,129 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
             .Where(account => account.Id == id)
             .Select(AccountResponse.Projection)
             .SingleOrDefaultAsync(cancellationToken);
+
+    public Task<TransactionResult> DepositAsync(
+        Guid id,
+        TransactionRequest request,
+        CancellationToken cancellationToken
+    ) => RecordTransactionAsync(id, request, TransactionType.Deposit, cancellationToken);
+
+    public Task<TransactionResult> WithdrawAsync(
+        Guid id,
+        TransactionRequest request,
+        CancellationToken cancellationToken
+    ) => RecordTransactionAsync(id, request, TransactionType.Withdrawal, cancellationToken);
+
+    public async Task<List<TransactionResponse>?> GetAccountTransactionsAsync(
+        Guid id,
+        CancellationToken cancellationToken
+    )
+    {
+        var accountExists = await dbContext.Accounts.AnyAsync(
+            account => account.Id == id,
+            cancellationToken
+        );
+
+        if (!accountExists)
+        {
+            return null;
+        }
+
+        return await dbContext
+            .BankTransactions.AsNoTracking()
+            .Where(transaction => transaction.AccountId == id)
+            .OrderByDescending(transaction => transaction.TransactionDate)
+            .ThenByDescending(transaction => transaction.Id)
+            .Select(TransactionResponse.Projection)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<TransactionResult> RecordTransactionAsync(
+        Guid id,
+        TransactionRequest request,
+        TransactionType transactionType,
+        CancellationToken cancellationToken
+    )
+    {
+        var validationResults = new List<ValidationResult>();
+        if (
+            !Validator.TryValidateObject(
+                request,
+                new ValidationContext(request),
+                validationResults,
+                validateAllProperties: true
+            )
+        )
+        {
+            return new TransactionResult(
+                TransactionStatus.InvalidRequest,
+                ErrorMessage: string.Join(
+                    " ",
+                    validationResults.Select(result => result.ErrorMessage)
+                )
+            );
+        }
+
+        var account = await dbContext.Accounts.SingleOrDefaultAsync(
+            account => account.Id == id,
+            cancellationToken
+        );
+
+        if (account is null)
+        {
+            return new TransactionResult(TransactionStatus.NotFound);
+        }
+
+        if (transactionType == TransactionType.Withdrawal && account.Balance < request.Amount)
+        {
+            return new TransactionResult(TransactionStatus.InsufficientFunds);
+        }
+
+        if (
+            transactionType == TransactionType.Deposit
+            && account.Balance > decimal.MaxValue - request.Amount
+        )
+        {
+            return new TransactionResult(TransactionStatus.BalanceLimitExceeded);
+        }
+
+        account.Balance +=
+            transactionType == TransactionType.Deposit ? request.Amount : -request.Amount;
+
+        var timestamp = timeProvider.GetUtcNow().UtcDateTime;
+
+        var transaction = new BankTransaction
+        {
+            Id = Guid.CreateVersion7(),
+            AccountId = account.Id,
+            Amount = request.Amount,
+            TransactionType = transactionType,
+            Description = string.IsNullOrWhiteSpace(request.Description)
+                ? transactionType.ToString()
+                : request.Description.Trim(),
+            BalanceAfterTransaction = account.Balance,
+            TransactionDate = timestamp,
+            CreatedAt = timestamp,
+        };
+
+        dbContext.BankTransactions.Add(transaction);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.Entry(transaction).State = EntityState.Detached;
+            dbContext.Entry(account).State = EntityState.Detached;
+            return new TransactionResult(TransactionStatus.Conflict);
+        }
+
+        return new TransactionResult(
+            TransactionStatus.Success,
+            TransactionResponse.FromEntity(transaction)
+        );
+    }
 
     private static string GenerateAccountNumber() =>
         RandomNumberGenerator

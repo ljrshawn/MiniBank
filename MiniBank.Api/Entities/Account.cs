@@ -19,4 +19,6 @@ public sealed class Account
     public AccountStatus AccountStatus { get; set; } = AccountStatus.Active;
 
     public DateTime CreatedAt { get; set; }
+
+    public List<BankTransaction> Transactions { get; set; } = [];
 }
