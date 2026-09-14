@@ -41,7 +41,6 @@ namespace MiniBank.Api.Migrations.Postgres
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Balance")
-                        .IsConcurrencyToken()
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
@@ -50,6 +49,12 @@ namespace MiniBank.Api.Migrations.Postgres
 
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 

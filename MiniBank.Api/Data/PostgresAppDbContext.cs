@@ -11,6 +11,10 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Account>().Property(account => account.Version)
+            .IsRowVersion()
+            .HasColumnName("xmin");
+
         modelBuilder.HasCollation(
             "minibank_email_nocase",
             locale: "und-u-ks-level2",

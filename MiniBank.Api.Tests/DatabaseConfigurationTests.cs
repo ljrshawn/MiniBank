@@ -61,7 +61,7 @@ public sealed class DatabaseConfigurationTests
         if (usePostgres)
         {
             Assert.Same(database, scope.ServiceProvider.GetRequiredService<PostgresAppDbContext>());
-            Assert.EndsWith("_InitialPostgres", Assert.Single(migrations));
+            Assert.Contains(migrations, id => id.EndsWith("_InitialPostgres"));
             var script = database.GetService<IMigrator>().GenerateScript();
             Assert.Contains("CREATE COLLATION", script);
             Assert.DoesNotContain("NOCASE", script);

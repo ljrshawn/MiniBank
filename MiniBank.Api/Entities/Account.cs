@@ -21,4 +21,7 @@ public sealed class Account
     public DateTime CreatedAt { get; set; }
 
     public List<BankTransaction> Transactions { get; set; } = [];
+
+    // PostgreSQL uses xmin; EF increments this value for SQLite updates.
+    public uint Version { get; set; }
 }

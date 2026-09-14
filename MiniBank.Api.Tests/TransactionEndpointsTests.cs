@@ -363,6 +363,76 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
         await AssertStateAsync(100m, 0);
     }
 
+    [Theory]
+    [InlineData("deposit")]
+    [InlineData("withdraw")]
+    public async Task Balance_restored_by_competing_transactions_still_returns_conflict(
+        string operation
+    )
+    {
+        await using var factory = WithInterceptor(
+            new CompetingWithdrawalInterceptor(restoreBalance: true)
+        );
+        using var client = CreateClient(factory);
+
+        using var response = await client.PostAsJsonAsync(
+            $"/api/accounts/{_accountId}/{operation}",
+            new { amount = 30m }
+        );
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict);
+        await AssertStateAsync(100m, 2);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Non_balance_update_changes_version_and_rejects_a_stale_save(
+        bool useSynchronousSave
+    )
+    {
+        await _factory.InDatabaseAsync(async database =>
+        {
+            var staleAccount = await database.Accounts.SingleAsync();
+            Assert.True(staleAccount.Version > 0);
+            var originalVersion = staleAccount.Version;
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite(database.Database.GetConnectionString())
+                .Options;
+            await using var competingDatabase = new AppDbContext(options);
+            var competingAccount = await competingDatabase.Accounts.SingleAsync();
+            competingAccount.AccountStatus = AccountStatus.Inactive;
+
+            if (useSynchronousSave)
+            {
+                competingDatabase.SaveChanges();
+            }
+            else
+            {
+                await competingDatabase.SaveChangesAsync();
+            }
+
+            Assert.NotEqual(originalVersion, competingAccount.Version);
+            var savedVersion = competingAccount.Version;
+            await competingDatabase.SaveChangesAsync();
+            Assert.Equal(savedVersion, competingAccount.Version);
+
+            staleAccount.Balance += 1m;
+            if (useSynchronousSave)
+            {
+                Assert.Throws<DbUpdateConcurrencyException>(() => database.SaveChanges());
+            }
+            else
+            {
+                await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+                    database.SaveChangesAsync()
+                );
+            }
+        });
+
+        await AssertStateAsync(100m, 0);
+    }
+
     private Task<HttpResponseMessage> PostAsync(string operation, object request) =>
         _client.PostAsJsonAsync($"/api/accounts/{_accountId}/{operation}", request);
 
@@ -406,7 +476,8 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
         return problem;
     }
 
-    private sealed class CompetingWithdrawalInterceptor : SaveChangesInterceptor
+    private sealed class CompetingWithdrawalInterceptor(bool restoreBalance = false)
+        : SaveChangesInterceptor
     {
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
@@ -431,6 +502,15 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
                 cancellationToken
             );
             Assert.Equal(TransactionStatus.Success, competingResult.Status);
+            if (restoreBalance)
+            {
+                var restoreResult = await service.DepositAsync(
+                    account.Id,
+                    new TransactionRequest { Amount = 80m },
+                    cancellationToken
+                );
+                Assert.Equal(TransactionStatus.Success, restoreResult.Status);
+            }
             return result;
         }
     }
