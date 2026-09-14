@@ -1,6 +1,6 @@
 # MiniBank
 
-A customer and account management API with deposits, withdrawals, and transaction history, built with .NET 10, ASP.NET Core Minimal APIs, EF Core 10, and SQLite.
+A customer and account management API with deposits, withdrawals, and transaction history, built with .NET 10, ASP.NET Core Minimal APIs, EF Core 10, and SQLite or PostgreSQL.
 
 ## Run locally
 
@@ -31,5 +31,18 @@ The SDK selection in `global.json` permits installed stable .NET 10 feature band
 dotnet run --project MiniBank.Api --no-launch-profile -- --migrate-database
 
 # The EF tool also performs the credential upgrade.
-dotnet ef database update --project MiniBank.Api
+dotnet ef database update --project MiniBank.Api --context AppDbContext
+
+# Apply PostgreSQL migrations, then exit.
+dotnet run --project MiniBank.Api --no-launch-profile -- --pgsql --migrate-database
+dotnet ef database update --project MiniBank.Api --context PostgresAppDbContext -- --pgsql
 ```
+
+Each provider has its own migration history. After changing the shared model, generate migrations for both contexts:
+
+```sh
+dotnet ef migrations add YourChange --project MiniBank.Api --context AppDbContext
+dotnet ef migrations add YourChange --project MiniBank.Api --context PostgresAppDbContext --output-dir Migrations/Postgres -- --pgsql
+```
+
+Switching providers selects a separate database; it does not copy existing SQLite data into PostgreSQL.

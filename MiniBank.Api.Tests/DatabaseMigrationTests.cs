@@ -27,7 +27,7 @@ public sealed class DatabaseMigrationTests : IAsyncLifetime
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:DbConnection"] =
+                    ["ConnectionStrings:Sqlite"] =
                         $"Data Source={Path.Combine(_directory, "test.db")};Pooling=False;Foreign Keys=True",
                 }
             )

@@ -21,7 +21,7 @@ public sealed class MiniBankApiFactory(string environment = "Testing")
         Directory.CreateDirectory(_databaseDirectory);
         builder.UseEnvironment(environment);
         builder.UseSetting(
-            "ConnectionStrings:DbConnection",
+            "ConnectionStrings:Sqlite",
             $"Data Source={Path.Combine(_databaseDirectory, "test.db")};Pooling=False;Foreign Keys=True"
         );
         builder.ConfigureLogging(logging => logging.ClearProviders());

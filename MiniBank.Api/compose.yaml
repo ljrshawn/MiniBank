@@ -1,0 +1,27 @@
+name: minibank
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    container_name: "${POSTGRES_DB}_db"
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT}"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_data:

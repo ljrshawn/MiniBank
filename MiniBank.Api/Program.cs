@@ -6,8 +6,10 @@ using MiniBank.Api.Features.Accounts;
 using MiniBank.Api.Features.Customers;
 
 var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
+var usePostgres = args.Contains("--pgsql", StringComparer.Ordinal);
+
 var builder = WebApplication.CreateBuilder(
-    args.Where(argument => argument != "--migrate-database").ToArray()
+    args.Where(argument => argument is not "--migrate-database" and not "--pgsql").ToArray()
 );
 
 builder.Services.AddOpenApi();
@@ -25,7 +27,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<AccountService>();
-builder.Services.AddAppDb(builder.Configuration);
+builder.Services.AddAppDb(builder.Configuration, usePostgres);
 
 var app = builder.Build();
 

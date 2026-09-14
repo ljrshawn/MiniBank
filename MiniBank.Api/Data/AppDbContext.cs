@@ -3,8 +3,12 @@ using MiniBank.Api.Entities;
 
 namespace MiniBank.Api.Data;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext : DbContext
 {
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    protected AppDbContext(DbContextOptions options) : base(options) { }
+
     public DbSet<Customer> Customers => Set<Customer>();
 
     public DbSet<Account> Accounts => Set<Account>();

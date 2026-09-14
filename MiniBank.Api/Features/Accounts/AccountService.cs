@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Enums;
+using Npgsql;
 
 namespace MiniBank.Api.Features.Accounts;
 
@@ -60,7 +61,8 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
                 }
             }
             catch (DbUpdateException exception)
-                when (exception.InnerException is SqliteException { SqliteExtendedErrorCode: 787 })
+                when (exception.InnerException is SqliteException { SqliteExtendedErrorCode: 787 }
+                    or PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
             {
                 // The customer may have been deleted after the existence check.
                 dbContext.Entry(account).State = EntityState.Detached;
@@ -211,6 +213,11 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
             .ToString(CultureInfo.InvariantCulture);
 
     private static bool IsAccountNumberCollision(DbUpdateException exception) =>
-        exception.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 } sqlite
-        && sqlite.Message.Contains("Accounts.AccountNumber", StringComparison.Ordinal);
+        (exception.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 } sqlite
+            && sqlite.Message.Contains("Accounts.AccountNumber", StringComparison.Ordinal))
+        || exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_Accounts_AccountNumber",
+        };
 }

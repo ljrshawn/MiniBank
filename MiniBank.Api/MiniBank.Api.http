@@ -1,8 +1,8 @@
 @baseUrl = http://localhost:5269
 # Run Create customer first, then copy its response ID here.
-@customerId = 8d88ef05-d974-4a32-9d33-ea2e4c39f964
+@customerId = 01a09dc9-9de4-72cc-9851-2de28ea4df88
 # After creating an account, copy its response ID here.
-@accountId = 01a07f01-8fe0-7a09-98e1-12951a74723b
+@accountId = 01a09dca-542e-7c24-a25d-5f9e5e290d3a
 
 ### Create customer — 201 with a Location header
 POST {{baseUrl}}/api/customers

@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
+using Npgsql;
 
 namespace MiniBank.Api.Features.Customers;
 
@@ -113,6 +114,12 @@ public sealed class CustomerService(
             // SQLite reports RESTRICT as a trigger constraint (1811), or a FK constraint (787).
             return CustomerDeleteResult.HasAccounts;
         }
+        catch (PostgresException exception)
+            when (exception.SqlState is PostgresErrorCodes.ForeignKeyViolation
+                or PostgresErrorCodes.RestrictViolation)
+        {
+            return CustomerDeleteResult.HasAccounts;
+        }
     }
 
     private Task<bool> EmailExistsAsync(
@@ -142,9 +149,14 @@ public sealed class CustomerService(
             return new(CustomerWriteStatus.NotFound);
         }
         catch (DbUpdateException exception)
-            when (exception.InnerException
+            when ((exception.InnerException
                     is SqliteException { SqliteExtendedErrorCode: 2067 } sqlite
                 && sqlite.Message.Contains("Customers.Email", StringComparison.Ordinal)
+                ) || exception.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation,
+                    ConstraintName: "IX_Customers_Email",
+                }
             )
         {
             // The unique index also protects concurrent requests that passed the earlier check.

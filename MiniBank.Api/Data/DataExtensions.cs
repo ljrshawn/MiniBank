@@ -6,13 +6,28 @@ public static class DataExtensions
 {
     public static IServiceCollection AddAppDb(
         this IServiceCollection services,
-        IConfiguration configuration
+        IConfiguration configuration,
+        bool usePostgres = false
     )
     {
-        var connectionString = configuration.GetConnectionString("DbConnection");
+        var connectionName = usePostgres ? "Pgsql" : "Sqlite";
+        var connectionString = configuration.GetConnectionString(connectionName);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException("Connection string 'DbConnection' is required.");
+            throw new InvalidOperationException(
+                $"Connection string 'ConnectionStrings:{connectionName}' is required."
+            );
+        }
+
+        if (usePostgres)
+        {
+            services.AddDbContext<PostgresAppDbContext>(options =>
+                options.UseNpgsql(connectionString)
+            );
+            services.AddScoped<AppDbContext>(provider =>
+                provider.GetRequiredService<PostgresAppDbContext>()
+            );
+            return services;
         }
 
         services.AddDbContext<AppDbContext>(options =>
