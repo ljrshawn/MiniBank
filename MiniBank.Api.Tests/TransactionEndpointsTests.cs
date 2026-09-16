@@ -104,6 +104,8 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
     [InlineData("withdraw", "{\"amount\":-1}")]
     [InlineData("deposit", "{\"amount\":1000000000000}")]
     [InlineData("withdraw", "{\"amount\":1000000000000}")]
+    [InlineData("deposit", "{\"amount\":0.001}")]
+    [InlineData("withdraw", "{\"amount\":0.001}")]
     [InlineData("deposit", "{\"amount\":1,\"balanceAfterTransaction\":999}")]
     [InlineData("withdraw", "{\"amount\":1,\"transactionType\":0}")]
     [InlineData("deposit", "null")]
@@ -161,8 +163,8 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("deposit", "0.001")]
-    [InlineData("withdraw", "0.001")]
+    [InlineData("deposit", "0.01")]
+    [InlineData("withdraw", "0.01")]
     [InlineData("deposit", "999999999999")]
     [InlineData("withdraw", "100")]
     public async Task Valid_boundary_amounts_are_accepted(string operation, string amountText)
@@ -186,12 +188,15 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
         await AssertStateAsync(100m, 0);
     }
 
-    [Fact]
-    public async Task Deposit_rejects_balance_overflow_without_creating_history()
+    [Theory]
+    [InlineData("79228162514264337593543950335")]
+    [InlineData("9999999999999999.99")]
+    public async Task Deposit_rejects_balance_overflow_without_creating_history(string balanceText)
     {
+        var balance = decimal.Parse(balanceText, CultureInfo.InvariantCulture);
         await _factory.InDatabaseAsync(async database =>
         {
-            (await database.Accounts.SingleAsync()).Balance = decimal.MaxValue;
+            (await database.Accounts.SingleAsync()).Balance = balance;
             await database.SaveChangesAsync();
         });
 
@@ -199,7 +204,7 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
 
         var problem = await AssertProblemAsync(response, HttpStatusCode.BadRequest);
         Assert.Equal("Balance limit exceeded", problem["title"]!.GetValue<string>());
-        await AssertStateAsync(decimal.MaxValue, 0);
+        await AssertStateAsync(balance, 0);
     }
 
     [Theory]
@@ -298,6 +303,8 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
     [InlineData(true, "-1")]
     [InlineData(false, "1000000000000")]
     [InlineData(true, "1000000000000")]
+    [InlineData(false, "0.001")]
+    [InlineData(true, "0.001")]
     public async Task Service_validates_amounts_when_called_without_HTTP(
         bool withdraw,
         string amountText

@@ -45,7 +45,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
 
         using var fetched = await _client.GetAsync(response.Headers.Location);
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
-        Assert.Equal(customer, await fetched.Content.ReadFromJsonAsync<CustomerResponse>());
+        Assert.Equivalent(customer, await fetched.Content.ReadFromJsonAsync<CustomerResponse>());
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
@@ -78,6 +78,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         var details = await response.Content.ReadFromJsonAsync<CustomerResponse>();
         Assert.NotNull(details);
         Assert.Equal(customer.Id, details.Id);
+        Assert.NotNull(details.Accounts);
         Assert.Empty(details.Accounts);
     }
 
@@ -100,12 +101,9 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Equal(
-            customer,
-            JsonSerializer.Deserialize<CustomerResponse>(body, JsonSerializerOptions.Web)
-        );
         var details = JsonSerializer.Deserialize<CustomerResponse>(body, JsonSerializerOptions.Web);
-        Assert.NotNull(details);
+        AssertProfileEqual(customer, details);
+        Assert.NotNull(details!.Accounts);
         Assert.Equal(
             new[] { checking, savings }
                 .OrderBy(account => account.CreatedAt)
@@ -304,7 +302,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         );
 
         await AssertProblemAsync(response, HttpStatusCode.Conflict);
-        Assert.Equal(
+        Assert.Equivalent(
             second,
             await _client.GetFromJsonAsync<CustomerResponse>($"/api/customers/{second.Id}")
         );
@@ -396,8 +394,12 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             "/api/customers?page=3&pageSize=2"
         );
 
-        Assert.Equal(customers.Take(2), first);
-        Assert.Equal(customers.Skip(2), second);
+        Assert.Collection(
+            first!,
+            customer => AssertProfileEqual(customers[0], customer),
+            customer => AssertProfileEqual(customers[1], customer)
+        );
+        AssertProfileEqual(customers[2], Assert.Single(second!));
         Assert.Empty(empty!);
     }
 
@@ -422,6 +424,13 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         using var response = await _client.PostAsync("/api/customers", content);
         await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+    }
+
+    private static void AssertProfileEqual(CustomerResponse expected, CustomerResponse? actual)
+    {
+        Assert.NotNull(actual);
+        // Account collections have their own assertions and are excluded from profile equality.
+        Assert.Equal(expected with { Accounts = actual.Accounts }, actual);
     }
 
     private async Task<CustomerResponse> CreateCustomerAsync(CreateCustomerRequest request)

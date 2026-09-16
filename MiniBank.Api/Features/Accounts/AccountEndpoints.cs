@@ -130,32 +130,35 @@ public static class AccountEndpoints
     private static Results<Ok<TransactionResponse>, ProblemHttpResult> ToTransactionHttpResult(
         Guid id,
         TransactionResult result
-    ) => result.Status switch
-    {
-        TransactionStatus.Success => TypedResults.Ok(result.Transaction!),
-        TransactionStatus.NotFound => AccountNotFound(id),
-        TransactionStatus.InvalidRequest => TypedResults.Problem(
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid transaction",
-            detail: result.ErrorMessage
-        ),
-        TransactionStatus.InsufficientFunds => TypedResults.Problem(
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Insufficient funds",
-            detail: "The account balance is too low for this withdrawal."
-        ),
-        TransactionStatus.BalanceLimitExceeded => TypedResults.Problem(
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Balance limit exceeded",
-            detail: "The deposit would exceed the maximum supported account balance."
-        ),
-        TransactionStatus.Conflict => TypedResults.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Account changed",
-            detail: "The account changed while processing this transaction. Please try again."
-        ),
-        _ => throw new InvalidOperationException($"Unknown transaction status: {result.Status}."),
-    };
+    ) =>
+        result.Status switch
+        {
+            TransactionStatus.Success => TypedResults.Ok(result.Transaction!),
+            TransactionStatus.NotFound => AccountNotFound(id),
+            TransactionStatus.InvalidRequest => TypedResults.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid transaction",
+                detail: result.ErrorMessage
+            ),
+            TransactionStatus.InsufficientFunds => TypedResults.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Insufficient funds",
+                detail: "The account balance is too low for this withdrawal."
+            ),
+            TransactionStatus.BalanceLimitExceeded => TypedResults.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Balance limit exceeded",
+                detail: "The deposit would exceed the maximum supported account balance."
+            ),
+            TransactionStatus.Conflict => TypedResults.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Account changed",
+                detail: "The account changed while processing this transaction. Please try again."
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unknown transaction status: {result.Status}."
+            ),
+        };
 
     private static ProblemHttpResult AccountNotFound(Guid id) =>
         TypedResults.Problem(

@@ -17,12 +17,8 @@ public sealed class BankTransactionConfiguration : IEntityTypeConfiguration<Bank
         });
         builder.Property(transaction => transaction.Amount).HasPrecision(18, 2);
         builder.Property(transaction => transaction.BalanceAfterTransaction).HasPrecision(18, 2);
-        builder
-            .Property(transaction => transaction.TransactionDate)
-            .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
-        builder
-            .Property(transaction => transaction.CreatedAt)
-            .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        builder.Property(transaction => transaction.TransactionDate).HasUtcConversion();
+        builder.Property(transaction => transaction.CreatedAt).HasUtcConversion();
         builder.Property(transaction => transaction.Description).HasMaxLength(255).IsRequired();
         builder
             .HasOne(transaction => transaction.Account)

@@ -3,6 +3,10 @@
 @customerId = 01a09dc9-9de4-72cc-9851-2de28ea4df88
 # After creating an account, copy its response ID here.
 @accountId = 01a09dca-542e-7c24-a25d-5f9e5e290d3a
+# Create a second account, then copy its ID here to receive a transfer.
+@toAccountId = 01a0a88e-7a41-7c5a-b2ef-7f1f75484255
+# Copy the created transfer's ID here.
+@transferId = 01a0a88f-7fd2-7589-aeb4-6b0e6cd43e96
 
 ### Create customer — 201 with a Location header
 POST {{baseUrl}}/api/customers
@@ -43,7 +47,8 @@ GET {{baseUrl}}/api/accounts/{{accountId}}
 Accept: application/json
 
 ### Deposit — 200 with the saved transaction and resulting balance
-# Amount must be > 0 and <= 999999999999. Description is optional (maximum 255 characters).
+# Amount must be > 0 and <= 999999999999, with at most two decimal places.
+# Description is optional (maximum 255 characters).
 POST {{baseUrl}}/api/accounts/{{accountId}}/deposit
 Content-Type: application/json
 
@@ -63,6 +68,22 @@ Content-Type: application/json
 
 ### Transaction history — newest first; [] for an account without transactions, 404 if missing
 GET {{baseUrl}}/api/accounts/{{accountId}}/transactions
+Accept: application/json
+
+### Transfer — 201 with Location: /api/transfers/{id}
+# Updates both balances and writes TransferOut / TransferIn entries atomically.
+POST {{baseUrl}}/api/transfers
+Content-Type: application/json
+
+{
+  "fromAccountId": "{{accountId}}",
+  "toAccountId": "{{toAccountId}}",
+  "amount": 10.25,
+  "description": "Savings transfer"
+}
+
+### Get transfer — 200, or 404 when the ID is unknown
+GET {{baseUrl}}/api/transfers/{{transferId}}
 Accept: application/json
 
 ### Invalid withdrawal — 400; balance and history are unchanged

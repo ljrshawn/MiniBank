@@ -1,6 +1,6 @@
 # MiniBank
 
-A customer and account management API with deposits, withdrawals, and transaction history, built with .NET 10, ASP.NET Core Minimal APIs, EF Core 10, and SQLite or PostgreSQL.
+A customer and account management API with deposits, withdrawals, transfers, and transaction history, built with .NET 10, ASP.NET Core Minimal APIs, EF Core 10, and SQLite or PostgreSQL.
 
 ## Run locally
 

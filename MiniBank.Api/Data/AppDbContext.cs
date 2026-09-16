@@ -5,15 +5,19 @@ namespace MiniBank.Api.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options) { }
 
-    protected AppDbContext(DbContextOptions options) : base(options) { }
+    protected AppDbContext(DbContextOptions options)
+        : base(options) { }
 
     public DbSet<Customer> Customers => Set<Customer>();
 
     public DbSet<Account> Accounts => Set<Account>();
 
     public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
+
+    public DbSet<Transfer> Transfers => Set<Transfer>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {

@@ -89,6 +89,7 @@ public sealed class DatabaseMigrationTests : IAsyncLifetime
         await database.SaveChangesAsync();
         Assert.Equal(1u, account.Version);
         Assert.Empty(await database.BankTransactions.ToListAsync());
+        Assert.Empty(await database.Transfers.ToListAsync());
         Assert.Equal(
             PasswordVerificationResult.Success,
             new PasswordHasher<Customer>().VerifyHashedPassword(

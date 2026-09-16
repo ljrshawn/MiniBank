@@ -13,9 +13,7 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.HasIndex(account => account.AccountNumber).IsUnique();
         builder.Property(account => account.Balance).HasPrecision(18, 2);
         builder.Property(account => account.Version).IsConcurrencyToken().ValueGeneratedNever();
-        builder
-            .Property(account => account.CreatedAt)
-            .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        builder.Property(account => account.CreatedAt).HasUtcConversion();
         builder
             .HasOne(account => account.Customer)
             .WithMany(customer => customer.Accounts)

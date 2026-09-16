@@ -154,6 +154,45 @@ namespace MiniBank.Api.Migrations.Postgres
                     b.ToTable("Customers");
                 });
 
+            modelBuilder.Entity("MiniBank.Api.Entities.Transfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("FromAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("TransactionDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TransferStatus")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromAccountId");
+
+                    b.HasIndex("ToAccountId");
+
+                    b.ToTable("Transfers");
+                });
+
             modelBuilder.Entity("MiniBank.Api.Entities.Account", b =>
                 {
                     b.HasOne("MiniBank.Api.Entities.Customer", "Customer")
@@ -174,6 +213,25 @@ namespace MiniBank.Api.Migrations.Postgres
                         .IsRequired();
 
                     b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("MiniBank.Api.Entities.Transfer", b =>
+                {
+                    b.HasOne("MiniBank.Api.Entities.Account", "FromAccount")
+                        .WithMany()
+                        .HasForeignKey("FromAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniBank.Api.Entities.Account", "ToAccount")
+                        .WithMany()
+                        .HasForeignKey("ToAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromAccount");
+
+                    b.Navigation("ToAccount");
                 });
 
             modelBuilder.Entity("MiniBank.Api.Entities.Account", b =>

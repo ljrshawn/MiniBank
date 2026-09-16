@@ -4,6 +4,7 @@ using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Features.Accounts;
 using MiniBank.Api.Features.Customers;
+using MiniBank.Api.Features.Transfers;
 
 var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
 var usePostgres = args.Contains("--pgsql", StringComparer.Ordinal);
@@ -27,6 +28,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<TransferService>();
 builder.Services.AddAppDb(builder.Configuration, usePostgres);
 
 var app = builder.Build();
@@ -53,6 +55,7 @@ app.UseHttpsRedirection();
 var api = app.MapGroup("/api");
 api.MapCustomerEndpoints();
 api.MapAccountEndpoints();
+api.MapTransferEndpoints();
 
 await app.RunAsync();
 

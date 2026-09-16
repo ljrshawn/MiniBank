@@ -40,6 +40,16 @@ public sealed class ApplicationTests
         var history = paths["/api/accounts/{id}/transactions"]!["get"]!["responses"]!;
         Assert.NotNull(history["200"]);
         Assert.NotNull(history["404"]);
+
+        var createTransfer = paths.Single(entry => entry.Key.TrimEnd('/') == "/api/transfers")
+            .Value!["post"]!["responses"]!;
+        Assert.NotNull(createTransfer["201"]);
+        Assert.NotNull(createTransfer["400"]);
+        Assert.NotNull(createTransfer["404"]);
+        Assert.NotNull(createTransfer["409"]);
+        var getTransfer = paths["/api/transfers/{id}"]!["get"]!["responses"]!;
+        Assert.NotNull(getTransfer["200"]);
+        Assert.NotNull(getTransfer["404"]);
     }
 
     [Fact]

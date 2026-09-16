@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
@@ -6,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Enums;
+using MiniBank.Api.Features.Common;
 using Npgsql;
 
 namespace MiniBank.Api.Features.Accounts;
@@ -64,9 +64,9 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
                 when (exception.InnerException
                         is SqliteException { SqliteExtendedErrorCode: 787 }
                             or PostgresException
-                            {
-                                SqlState: PostgresErrorCodes.ForeignKeyViolation
-                            }
+                        {
+                            SqlState: PostgresErrorCodes.ForeignKeyViolation
+                        }
                 )
             {
                 // The customer may have been deleted after the existence check.
@@ -132,22 +132,12 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
         CancellationToken cancellationToken
     )
     {
-        var validationResults = new List<ValidationResult>();
-        if (
-            !Validator.TryValidateObject(
-                request,
-                new ValidationContext(request),
-                validationResults,
-                validateAllProperties: true
-            )
-        )
+        var validationError = RequestValidation.GetError(request);
+        if (validationError is not null)
         {
             return new TransactionResult(
                 TransactionStatus.InvalidRequest,
-                ErrorMessage: string.Join(
-                    " ",
-                    validationResults.Select(result => result.ErrorMessage)
-                )
+                ErrorMessage: validationError
             );
         }
 
@@ -168,7 +158,7 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
 
         if (
             transactionType == TransactionType.Deposit
-            && account.Balance > decimal.MaxValue - request.Amount
+            && account.Balance > MoneyLimits.MaximumBalance - request.Amount
         )
         {
             return new TransactionResult(TransactionStatus.BalanceLimitExceeded);
@@ -179,19 +169,13 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
 
         var timestamp = timeProvider.GetUtcNow().UtcDateTime;
 
-        var transaction = new BankTransaction
-        {
-            Id = Guid.CreateVersion7(),
-            AccountId = account.Id,
-            Amount = request.Amount,
-            TransactionType = transactionType,
-            Description = string.IsNullOrWhiteSpace(request.Description)
-                ? transactionType.ToString()
-                : request.Description.Trim(),
-            BalanceAfterTransaction = account.Balance,
-            TransactionDate = timestamp,
-            CreatedAt = timestamp,
-        };
+        var transaction = BankTransaction.Create(
+            account,
+            transactionType,
+            request.Amount,
+            request.Description,
+            timestamp
+        );
 
         dbContext.BankTransactions.Add(transaction);
 
@@ -224,8 +208,8 @@ public sealed class AccountService(AppDbContext dbContext, TimeProvider timeProv
         )
         || exception.InnerException
             is PostgresException
-            {
-                SqlState: PostgresErrorCodes.UniqueViolation,
-                ConstraintName: "IX_Accounts_AccountNumber",
-            };
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_Accounts_AccountNumber",
+        };
 }

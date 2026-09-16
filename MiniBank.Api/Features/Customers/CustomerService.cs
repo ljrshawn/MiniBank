@@ -24,7 +24,7 @@ public sealed class CustomerService(
             .ThenBy(customer => customer.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(CustomerResponse.Projection)
+            .Select(CustomerResponse.ListProjection)
             .ToListAsync(cancellationToken);
 
     public Task<CustomerResponse?> GetCustomerByIdAsync(
