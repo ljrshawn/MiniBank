@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
 using MiniBank.Api.Features.Accounts;
 using MiniBank.Api.Features.Customers;
 using MiniBank.Api.Features.Transfers;
+using MiniBank.Api.Infrastructure.Http;
 
 var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
 var usePostgres = args.Contains("--pgsql", StringComparer.Ordinal);
@@ -14,16 +14,7 @@ var builder = WebApplication.CreateBuilder(
 );
 
 builder.Services.AddOpenApi();
-builder.Services.AddValidation();
-builder.Services.AddProblemDetails(options =>
-    options.CustomizeProblemDetails = context =>
-    {
-        context.ProblemDetails.Instance = context.HttpContext.Request.Path;
-        context.ProblemDetails.Extensions["traceId"] =
-            Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
-    }
-);
-builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
+builder.Services.AddApiHttp();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 builder.Services.AddScoped<CustomerService>();
@@ -41,8 +32,7 @@ if (migrateDatabase)
     return;
 }
 
-app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseApiHttp();
 
 if (app.Environment.IsDevelopment())
 {

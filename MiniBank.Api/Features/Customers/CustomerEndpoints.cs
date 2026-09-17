@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http.HttpResults;
+using MiniBank.Api.Infrastructure.Http;
 
 namespace MiniBank.Api.Features.Customers;
 
@@ -21,29 +22,27 @@ public static class CustomerEndpoints
             .MapGet("/{id:guid}", GetCustomerByIdAsync)
             .WithName(GetCustomerRouteName)
             .WithSummary("Get a customer by ID, including their accounts.")
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblems(ApiProblems.CustomerNotFound);
 
         group
             .MapPost("/", CreateCustomerAsync)
             .WithName("CreateCustomer")
             .WithSummary("Create a customer.")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblems(ApiProblems.DuplicateEmail);
 
         group
             .MapPut("/{id:guid}", UpdateCustomerAsync)
             .WithName("UpdateCustomer")
             .WithSummary("Replace a customer's profile and status.")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblems(ApiProblems.CustomerNotFound, ApiProblems.DuplicateEmail);
 
         group
             .MapDelete("/{id:guid}", DeleteCustomerAsync)
             .WithName("DeleteCustomer")
             .WithSummary("Delete a customer who has no accounts.")
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblems(ApiProblems.CustomerNotFound, ApiProblems.CustomerHasAccounts);
 
         return group;
     }
@@ -60,7 +59,7 @@ public static class CustomerEndpoints
     > GetCustomerByIdAsync(Guid id, CustomerService service, CancellationToken cancellationToken)
     {
         var customer = await service.GetCustomerByIdAsync(id, cancellationToken);
-        return customer is null ? CustomerNotFound() : TypedResults.Ok(customer);
+        return customer.ToHttpResult(ApiProblems.CustomerNotFound, value => TypedResults.Ok(value));
     }
 
     private static async Task<
@@ -72,16 +71,8 @@ public static class CustomerEndpoints
     )
     {
         var result = await service.CreateCustomerAsync(request, cancellationToken);
-        if (result.Status == CustomerWriteStatus.DuplicateEmail)
-        {
-            return DuplicateEmail();
-        }
-
-        var customer = result.Customer!;
-        return TypedResults.CreatedAtRoute(
-            customer,
-            GetCustomerRouteName,
-            new { id = customer.Id }
+        return result.ToHttpResult(customer =>
+            TypedResults.CreatedAtRoute(customer, GetCustomerRouteName, new { id = customer.Id })
         );
     }
 
@@ -93,41 +84,12 @@ public static class CustomerEndpoints
     )
     {
         var result = await service.UpdateCustomerAsync(id, request, cancellationToken);
-        return result.Status switch
-        {
-            CustomerWriteStatus.NotFound => CustomerNotFound(),
-            CustomerWriteStatus.DuplicateEmail => DuplicateEmail(),
-            _ => TypedResults.Ok(result.Customer!),
-        };
+        return result.ToHttpResult(customer => TypedResults.Ok(customer));
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteCustomerAsync(
         Guid id,
         CustomerService service,
         CancellationToken cancellationToken
-    ) =>
-        await service.DeleteCustomerAsync(id, cancellationToken) switch
-        {
-            CustomerDeleteResult.NotFound => CustomerNotFound(),
-            CustomerDeleteResult.HasAccounts => TypedResults.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "Customer has accounts",
-                detail: "A customer with accounts cannot be deleted. Update their status instead."
-            ),
-            _ => TypedResults.NoContent(),
-        };
-
-    private static ProblemHttpResult CustomerNotFound() =>
-        TypedResults.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Customer not found",
-            detail: "No customer exists with the supplied ID."
-        );
-
-    private static ProblemHttpResult DuplicateEmail() =>
-        TypedResults.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Email already registered",
-            detail: "A customer with the same email already exists."
-        );
+    ) => (await service.DeleteCustomerAsync(id, cancellationToken)).ToHttpResult();
 }

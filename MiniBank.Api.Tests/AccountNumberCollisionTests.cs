@@ -111,6 +111,15 @@ public sealed class AccountNumberCollisionTests : IAsyncLifetime
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<JsonObject>();
         Assert.Equal(503, problem!["status"]!.GetValue<int>());
+        Assert.Equal("Account number unavailable", problem["title"]!.GetValue<string>());
+        Assert.Equal(
+            "A unique account number could not be allocated. Please try again.",
+            problem["detail"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            $"/api/accounts/customers/{_customerId}",
+            problem["instance"]!.GetValue<string>()
+        );
         Assert.NotNull(problem["traceId"]);
         Assert.DoesNotContain("Sqlite", problem.ToJsonString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(EntityState.Detached, interceptor.LastEntry!.State);

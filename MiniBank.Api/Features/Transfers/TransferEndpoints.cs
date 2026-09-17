@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using MiniBank.Api.Infrastructure.Http;
 
 namespace MiniBank.Api.Features.Transfers;
 
@@ -14,16 +15,18 @@ public static class TransferEndpoints
             .MapGet("/{id:guid}", GetTransferByIdAsync)
             .WithName(GetTransferRouteName)
             .WithSummary("Get a transfer by ID.")
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblems(ApiProblems.TransferNotFound());
 
         group
             .MapPost("/", CreateTransferAsync)
             .WithName("CreateTransfer")
             .WithSummary("Transfer money between two existing accounts.")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblems(
+                ApiProblems.InvalidTransfer,
+                ApiProblems.AccountNotFound(),
+                ApiProblems.TransferConflict
+            );
 
         return group;
     }
@@ -35,13 +38,10 @@ public static class TransferEndpoints
     )
     {
         var transfer = await service.GetTransferByIdAsync(id, cancellationToken);
-        return transfer is not null
-            ? TypedResults.Ok(transfer)
-            : TypedResults.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Transfer not found",
-                detail: $"No transfer found with ID {id}."
-            );
+        return transfer.ToHttpResult(
+            ApiProblems.TransferNotFound(id),
+            value => TypedResults.Ok(value)
+        );
     }
 
     private static async Task<
@@ -53,41 +53,8 @@ public static class TransferEndpoints
     )
     {
         var result = await service.CreateTransferAsync(request, cancellationToken);
-        return result.Status switch
-        {
-            TransferResultStatus.Success => TypedResults.CreatedAtRoute(
-                result.Transfer!,
-                GetTransferRouteName,
-                new { id = result.Transfer!.Id }
-            ),
-            TransferResultStatus.NotFound => TypedResults.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Account not found",
-                detail: result.ErrorMessage
-            ),
-            TransferResultStatus.InvalidRequest => TypedResults.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Invalid transfer",
-                detail: result.ErrorMessage
-            ),
-            TransferResultStatus.InsufficientFunds => TypedResults.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Insufficient funds",
-                detail: "The source account balance is too low for this transfer."
-            ),
-            TransferResultStatus.BalanceLimitExceeded => TypedResults.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Balance limit exceeded",
-                detail: "The transfer would exceed the maximum supported destination account balance."
-            ),
-            TransferResultStatus.Conflict => TypedResults.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "Account changed",
-                detail: "An account changed while processing this transfer. Please try again."
-            ),
-            _ => throw new InvalidOperationException(
-                $"Unknown transfer result status: {result.Status}."
-            ),
-        };
+        return result.ToHttpResult(transfer =>
+            TypedResults.CreatedAtRoute(transfer, GetTransferRouteName, new { id = transfer.Id })
+        );
     }
 }
