@@ -208,7 +208,7 @@ public sealed class AccountEndpointsTests : IAsyncLifetime
         await _factory.InDatabaseAsync(async database =>
         {
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite(database.Database.GetConnectionString())
+                .UseNpgsql(database.Database.GetConnectionString())
                 .AddInterceptors(new DeleteCustomerBeforeAccountSaveInterceptor())
                 .Options;
             await using var concurrentDatabase = new AppDbContext(options);
@@ -235,7 +235,7 @@ public sealed class AccountEndpointsTests : IAsyncLifetime
                 FirstName = "David",
                 LastName = "Smith",
                 Email = $"{Guid.NewGuid():N}@example.com",
-                Password = "A-long-test-password!",
+                Password = "A-long-test-password-1!",
                 PhoneNumber = "+61 412 345 678",
             }
         );

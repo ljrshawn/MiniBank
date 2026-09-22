@@ -32,7 +32,7 @@ public sealed class AccountNumberCollisionTests : IAsyncLifetime
                     FirstName = "Test",
                     LastName = "Customer",
                     Email = "collision-tests@example.com",
-                    PasswordHash = "test-only-placeholder",
+                    User = new ApplicationUser { CreatedAt = DateTime.UtcNow },
                     PhoneNumber = "+61 412 345 678",
                     CreatedAt = DateTime.UtcNow,
                 }
@@ -121,7 +121,7 @@ public sealed class AccountNumberCollisionTests : IAsyncLifetime
             problem["instance"]!.GetValue<string>()
         );
         Assert.NotNull(problem["traceId"]);
-        Assert.DoesNotContain("Sqlite", problem.ToJsonString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Npgsql", problem.ToJsonString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(EntityState.Detached, interceptor.LastEntry!.State);
         await AssertOnlyOriginalAccountAsync();
     }
@@ -151,7 +151,7 @@ public sealed class AccountNumberCollisionTests : IAsyncLifetime
         await _factory.InDatabaseAsync(async database =>
         {
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite(database.Database.GetConnectionString())
+                .UseNpgsql(database.Database.GetConnectionString())
                 .AddInterceptors(interceptor)
                 .Options;
             await using var interceptedDatabase = new AppDbContext(options);
@@ -194,7 +194,7 @@ public sealed class AccountNumberCollisionTests : IAsyncLifetime
             Assert.Equal(25m, account.Balance);
         });
 
-    // Force real SQLite constraints without replacing the production number generator.
+    // Force real PostgreSQL constraints without replacing the production number generator.
     private sealed class AccountSaveInterceptor(
         int collisions,
         Guid? conflictingId = null,

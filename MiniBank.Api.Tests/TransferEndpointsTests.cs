@@ -35,7 +35,7 @@ public sealed class TransferEndpointsTests : IAsyncLifetime
                 FirstName = "Test",
                 LastName = "Customer",
                 Email = "transfers@example.com",
-                PasswordHash = "test-only-placeholder",
+                User = new ApplicationUser { CreatedAt = DateTime.UtcNow },
                 PhoneNumber = "+61 412 345 678",
                 CreatedAt = DateTime.UtcNow,
             };
@@ -236,7 +236,7 @@ public sealed class TransferEndpointsTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("79228162514264337593543950335")]
+    [InlineData("9999999999999999.98")]
     [InlineData("9999999999999999.99")]
     public async Task Destination_balance_limit_preserves_both_accounts(string balanceText)
     {
@@ -386,7 +386,7 @@ public sealed class TransferEndpointsTests : IAsyncLifetime
             _hasRun = true;
             var database = (AppDbContext)eventData.Context!;
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite(database.Database.GetConnectionString())
+                .UseNpgsql(database.Database.GetConnectionString())
                 .Options;
             await using var competingDatabase = new AppDbContext(options);
             var service = new AccountService(competingDatabase, TimeProvider.System);

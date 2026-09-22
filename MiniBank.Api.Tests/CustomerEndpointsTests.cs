@@ -53,13 +53,13 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
 
         await _factory.InDatabaseAsync(async database =>
         {
-            var stored = await database.Customers.SingleAsync();
-            Assert.NotEqual(request.Password, stored.PasswordHash);
+            var stored = await database.Customers.Include(customer => customer.User).SingleAsync();
+            Assert.NotEqual(request.Password, stored.User.PasswordHash!);
             Assert.Equal(
                 PasswordVerificationResult.Success,
-                new PasswordHasher<Customer>().VerifyHashedPassword(
-                    stored,
-                    stored.PasswordHash,
+                new PasswordHasher<ApplicationUser>().VerifyHashedPassword(
+                    stored.User,
+                    stored.User.PasswordHash!,
                     request.Password
                 )
             );
@@ -248,12 +248,12 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
 
         await _factory.InDatabaseAsync(async database =>
         {
-            var stored = await database.Customers.SingleAsync();
+            var stored = await database.Customers.Include(customer => customer.User).SingleAsync();
             Assert.Equal(
                 PasswordVerificationResult.Success,
-                new PasswordHasher<Customer>().VerifyHashedPassword(
-                    stored,
-                    stored.PasswordHash,
+                new PasswordHasher<ApplicationUser>().VerifyHashedPassword(
+                    stored.User,
+                    stored.User.PasswordHash!,
                     ValidRequest().Password
                 )
             );
@@ -456,7 +456,7 @@ public sealed class CustomerEndpointsTests : IAsyncLifetime
             FirstName = "David",
             LastName = "Smith",
             Email = "david.smith@example.com",
-            Password = "A-long-test-password!",
+            Password = "A-long-test-password-1!",
             PhoneNumber = "+61 412 345 678",
         };
 

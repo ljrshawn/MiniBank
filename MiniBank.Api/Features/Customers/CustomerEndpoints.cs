@@ -63,7 +63,7 @@ public static class CustomerEndpoints
     }
 
     private static async Task<
-        Results<CreatedAtRoute<CustomerResponse>, ProblemHttpResult>
+        Results<CreatedAtRoute<CustomerResponse>, ValidationProblem, ProblemHttpResult>
     > CreateCustomerAsync(
         CreateCustomerRequest request,
         CustomerService service,
@@ -76,7 +76,7 @@ public static class CustomerEndpoints
         );
     }
 
-    private static async Task<Results<Ok<CustomerResponse>, ProblemHttpResult>> UpdateCustomerAsync(
+    private static async Task<Results<Ok<CustomerResponse>, ValidationProblem, ProblemHttpResult>> UpdateCustomerAsync(
         Guid id,
         UpdateCustomerRequest request,
         CustomerService service,

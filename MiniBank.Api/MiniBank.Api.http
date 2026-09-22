@@ -8,6 +8,18 @@
 # Copy the created transfer's ID here.
 @transferId = 01a0a88f-7fd2-7589-aeb4-6b0e6cd43e96
 
+### Register a customer and receive an access token (expiresIn is in seconds)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "new.customer@example.com",
+  "password": "Local-demo-password-2026!",
+  "firstName": "New",
+  "lastName": "Customer",
+  "phoneNumber": "+61 412 345 678"
+}
+
 ### Create customer — 201 with a Location header
 POST {{baseUrl}}/api/customers
 Content-Type: application/json

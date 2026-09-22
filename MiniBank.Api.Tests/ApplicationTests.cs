@@ -19,6 +19,10 @@ public sealed class ApplicationTests
         Assert.All(paths, entry => Assert.StartsWith("/api/", entry.Key));
         Assert.Contains(paths, entry => entry.Key.TrimEnd('/') == "/api/customers");
         Assert.Contains(paths, entry => entry.Key == "/api/customers/{id}");
+        var registration = paths["/api/auth/register"]!["post"]!["responses"]!;
+        Assert.NotNull(registration["200"]);
+        Assert.NotNull(registration["400"]);
+        Assert.NotNull(registration["409"]);
         var byId = paths["/api/customers/{id}"]!;
         Assert.NotNull(byId["put"]!["responses"]!["409"]);
         Assert.NotNull(byId["delete"]!["responses"]!["404"]);
@@ -69,7 +73,7 @@ public sealed class ApplicationTests
         Assert.Equal(500, problem!["status"]!.GetValue<int>());
         Assert.NotNull(problem["traceId"]);
         Assert.Null(problem["exception"]);
-        Assert.DoesNotContain("Sqlite", problem.ToJsonString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Npgsql", problem.ToJsonString(), StringComparison.OrdinalIgnoreCase);
 
         using var openApi = await client.GetAsync("/openapi/v1.json");
         Assert.Equal(HttpStatusCode.NotFound, openApi.StatusCode);

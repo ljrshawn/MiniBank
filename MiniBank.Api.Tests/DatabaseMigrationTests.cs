@@ -1,186 +1,140 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
+using MiniBank.Api.Enums;
+using Npgsql;
 
 namespace MiniBank.Api.Tests;
 
 public sealed class DatabaseMigrationTests : IAsyncLifetime
 {
-    private const string InitialMigration = "20260905015118_InitialCreate";
-    private readonly string _directory = Path.Combine(
-        Path.GetTempPath(),
-        "minibank-migrations",
-        Guid.NewGuid().ToString("N")
-    );
-    private ServiceProvider _services = null!;
+    private const string InitialMigration = "20260922101849_InitialCreate";
+    private readonly PostgresTestDatabase _database = new();
 
     public Task InitializeAsync()
     {
-        Directory.CreateDirectory(_directory);
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:Sqlite"] =
-                        $"Data Source={Path.Combine(_directory, "test.db")};Pooling=False;Foreign Keys=True",
-                }
-            )
-            .Build();
-
-        _services = new ServiceCollection()
-            .AddLogging()
-            .AddAppDb(configuration)
-            .BuildServiceProvider();
+        _database.Create();
         return Task.CompletedTask;
     }
 
-    public async Task DisposeAsync()
-    {
-        await _services.DisposeAsync();
-        Directory.Delete(_directory, recursive: true);
-    }
+    public async Task DisposeAsync() => await _database.DisposeAsync();
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Upgrade_preserves_data_and_hashes_legacy_passwords_once(
-        bool useSynchronousMigration
-    )
+    [Fact]
+    public async Task Identity_migration_preserves_existing_users_customers_and_accounts()
     {
-        await using var scope = _services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var database = CreateContext();
         await database.GetService<IMigrator>().MigrateAsync(InitialMigration);
-
+        var userId = Guid.NewGuid().ToString();
         var customerId = Guid.NewGuid();
-        const string password = "legacy:My original password";
-        await InsertLegacyCustomerAsync(database, customerId, " David@example.com ", password);
+        var timestamp = DateTime.UtcNow;
+        const string passwordHash = "existing-password-hash";
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "ApplicationUsers"
+                ("Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail", "PasswordHash",
+                 "CreatedAt", "EmailConfirmed", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnabled", "AccessFailedCount")
+            VALUES ({userId}, {"david@example.com"}, {"DAVID@EXAMPLE.COM"}, {"david@example.com"},
+                    {"DAVID@EXAMPLE.COM"}, {passwordHash}, {timestamp}, false, false, false, false, 0)
+            """
+        );
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "Customers"
+                ("Id", "FirstName", "LastName", "Email", "PhoneNumber", "CustomerStatus", "CreatedAt", "UserId")
+            VALUES ({customerId}, {"David"}, {"Smith"}, {"david@example.com"},
+                    {"+61 412 345 678"}, 0, {timestamp}, {userId})
+            """
+        );
         await database.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO "Accounts"
                 ("Id", "CustomerId", "AccountNumber", "Balance", "AccountType", "AccountStatus", "CreatedAt")
-            VALUES ({Guid.NewGuid()}, {customerId}, {"1000000001"}, {123.45m}, {1}, {0}, {DateTime.UtcNow})
+            VALUES ({Guid.NewGuid()}, {customerId}, {"100000001"}, {123.45m}, 1, 0, {timestamp})
             """
         );
 
-        if (useSynchronousMigration)
-        {
-            database.Database.Migrate();
-        }
-        else
-        {
-            await database.Database.MigrateAsync();
-        }
+        await database.Database.MigrateAsync();
 
-        var customer = await database.Customers.AsNoTracking().SingleAsync();
+        var customer = await database.Customers.Include(customer => customer.User).SingleAsync();
         Assert.Equal(customerId, customer.Id);
-        Assert.Equal("David@example.com", customer.Email);
-        Assert.Equal("123456789", customer.TaxFileNumber);
+        Assert.Equal(userId, customer.User.Id);
+        Assert.Equal(passwordHash, customer.User.PasswordHash);
         Assert.Equal(DateTimeKind.Utc, customer.CreatedAt.Kind);
-        var account = await database.Accounts.SingleAsync();
-        Assert.Equal(123.45m, account.Balance);
-        Assert.Equal(0u, account.Version);
-        account.Balance += 1m;
-        await database.SaveChangesAsync();
-        Assert.Equal(1u, account.Version);
-        Assert.Empty(await database.BankTransactions.ToListAsync());
-        Assert.Empty(await database.Transfers.ToListAsync());
-        Assert.Equal(
-            PasswordVerificationResult.Success,
-            new PasswordHasher<Customer>().VerifyHashedPassword(
-                customer,
-                customer.PasswordHash,
-                password
-            )
-        );
-
-        var hash = customer.PasswordHash;
-        await database.Database.MigrateAsync();
-        Assert.Equal(hash, (await database.Customers.AsNoTracking().SingleAsync()).PasswordHash);
+        Assert.Equal(123.45m, (await database.Accounts.SingleAsync()).Balance);
+        Assert.Empty(await database.Set<IdentityUserClaim<string>>().ToListAsync());
         Assert.False(database.Database.HasPendingModelChanges());
-    }
-
-    [Fact]
-    public async Task Upgrade_rejects_legacy_duplicate_emails_without_losing_customers()
-    {
-        await using var scope = _services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await database.GetService<IMigrator>().MigrateAsync(InitialMigration);
-        await InsertLegacyCustomerAsync(
-            database,
-            Guid.NewGuid(),
-            " David@example.com ",
-            "first password"
-        );
-        await InsertLegacyCustomerAsync(
-            database,
-            Guid.NewGuid(),
-            "DAVID@example.com",
-            "second password"
-        );
-
-        await Assert.ThrowsAsync<SqliteException>(() => database.Database.MigrateAsync());
-
-        var count = await database
-            .Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM Customers")
-            .SingleAsync();
-        Assert.Equal(2, count);
-        var passwords = await database
-            .Database.SqlQueryRaw<string>("SELECT PassWord AS Value FROM Customers")
-            .ToListAsync();
-        Assert.Contains("first password", passwords);
-        Assert.Contains("second password", passwords);
-        Assert.Equal([InitialMigration], await database.Database.GetAppliedMigrationsAsync());
-    }
-
-    [Fact]
-    public async Task Database_enforces_email_uniqueness_even_without_the_customer_service()
-    {
-        await using var scope = _services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await database.Database.MigrateAsync();
+        Assert.Equal(1, await database.Users.CountAsync());
+    }
 
+    [Fact]
+    public async Task Database_enforces_case_insensitive_customer_email_uniqueness()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync();
         database.Customers.Add(NewCustomer("David@example.com"));
         await database.SaveChangesAsync();
         database.Customers.Add(NewCustomer("DAVID@example.com"));
 
-        var exception = await Assert.ThrowsAsync<DbUpdateException>(() =>
-            database.SaveChangesAsync()
-        );
-        Assert.Equal(
-            2067,
-            Assert.IsType<SqliteException>(exception.InnerException).SqliteExtendedErrorCode
-        );
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
+        var postgres = Assert.IsType<PostgresException>(exception.InnerException);
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, postgres.SqlState);
+        Assert.Equal("IX_Customers_Email", postgres.ConstraintName);
+        database.ChangeTracker.Clear();
+        Assert.Equal(1, await database.Customers.CountAsync());
+        Assert.Equal(1, await database.Users.CountAsync());
     }
 
-    private static Customer NewCustomer(string email) =>
-        new()
-        {
-            Id = Guid.NewGuid(),
-            FirstName = "David",
-            LastName = "Smith",
-            Email = email,
-            PasswordHash = "test-only-placeholder",
-            PhoneNumber = "+61 412 345 678",
-            CreatedAt = DateTime.UtcNow,
-        };
+    [Fact]
+    public async Task Database_enforces_normalized_identity_email_uniqueness()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync();
+        database.Users.Add(new ApplicationUser { NormalizedEmail = "DAVID@EXAMPLE.COM" });
+        await database.SaveChangesAsync();
+        database.Users.Add(new ApplicationUser { NormalizedEmail = "DAVID@EXAMPLE.COM" });
 
-    private static Task InsertLegacyCustomerAsync(
-        AppDbContext database,
-        Guid id,
-        string email,
-        string password
-    ) =>
-        database.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO "Customers"
-                ("Id", "FirstName", "LastName", "Email", "PassWord", "TaxFileNumber", "PhoneNumber", "CustomerStatus", "CreatedAt")
-            VALUES ({id}, {"David"}, {"Smith"}, {email}, {password}, {"123456789"}, {"+61 412 345 678"}, {0}, {DateTime.UtcNow})
-            """
-        );
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
+        var postgres = Assert.IsType<PostgresException>(exception.InnerException);
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, postgres.SqlState);
+        Assert.Equal("EmailIndex", postgres.ConstraintName);
+    }
+
+    [Fact]
+    public async Task Database_rejects_balances_outside_numeric_column_precision()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync();
+        var customer = NewCustomer("david@example.com");
+        database.Accounts.Add(new Account
+        {
+            Customer = customer,
+            AccountNumber = "123456789",
+            AccountType = AccountType.Checking,
+            Balance = decimal.MaxValue,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.NumericValueOutOfRange,
+            Assert.IsType<PostgresException>(exception.InnerException).SqlState);
+    }
+
+    private AppDbContext CreateContext() => new(
+        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_database.ConnectionString).Options
+    );
+
+    private static Customer NewCustomer(string email) => new()
+    {
+        Id = Guid.NewGuid(),
+        FirstName = "David",
+        LastName = "Smith",
+        Email = email,
+        PhoneNumber = "+61 412 345 678",
+        CreatedAt = DateTime.UtcNow,
+        User = new ApplicationUser { CreatedAt = DateTime.UtcNow },
+    };
 }

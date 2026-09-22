@@ -33,7 +33,7 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
                 FirstName = "Test",
                 LastName = "Customer",
                 Email = "transactions@example.com",
-                PasswordHash = "test-only-placeholder",
+                User = new ApplicationUser { CreatedAt = DateTime.UtcNow },
                 PhoneNumber = "+61 412 345 678",
                 CreatedAt = DateTime.UtcNow,
             };
@@ -189,7 +189,7 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("79228162514264337593543950335")]
+    [InlineData("9999999999999999.98")]
     [InlineData("9999999999999999.99")]
     public async Task Deposit_rejects_balance_overflow_without_creating_history(string balanceText)
     {
@@ -404,7 +404,7 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
             Assert.True(staleAccount.Version > 0);
             var originalVersion = staleAccount.Version;
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite(database.Database.GetConnectionString())
+                .UseNpgsql(database.Database.GetConnectionString())
                 .Options;
             await using var competingDatabase = new AppDbContext(options);
             var competingAccount = await competingDatabase.Accounts.SingleAsync();
@@ -498,7 +498,7 @@ public sealed class TransactionEndpointsTests : IAsyncLifetime
                 .Single(entry => entry.State == EntityState.Modified)
                 .Entity;
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite(database.Database.GetConnectionString())
+                .UseNpgsql(database.Database.GetConnectionString())
                 .Options;
             await using var competingDatabase = new AppDbContext(options);
             var service = new AccountService(competingDatabase, TimeProvider.System);

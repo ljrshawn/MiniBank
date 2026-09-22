@@ -12,7 +12,7 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.Property(account => account.AccountNumber).HasMaxLength(34).IsRequired();
         builder.HasIndex(account => account.AccountNumber).IsUnique();
         builder.Property(account => account.Balance).HasPrecision(18, 2);
-        builder.Property(account => account.Version).IsConcurrencyToken().ValueGeneratedNever();
+        builder.Property(account => account.Version).IsRowVersion().HasColumnName("xmin");
         builder.Property(account => account.CreatedAt).HasUtcConversion();
         builder
             .HasOne(account => account.Customer)

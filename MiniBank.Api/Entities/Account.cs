@@ -22,6 +22,6 @@ public sealed class Account
 
     public List<BankTransaction> Transactions { get; set; } = [];
 
-    // PostgreSQL uses xmin; EF increments this value for SQLite updates.
+    // PostgreSQL's xmin detects concurrent changes to any account column.
     public uint Version { get; set; }
 }

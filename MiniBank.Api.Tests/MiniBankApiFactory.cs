@@ -10,20 +10,15 @@ namespace MiniBank.Api.Tests;
 public sealed class MiniBankApiFactory(string environment = "Testing")
     : WebApplicationFactory<Program>
 {
-    private readonly string _databaseDirectory = Path.Combine(
-        Path.GetTempPath(),
-        "minibank-tests",
-        Guid.NewGuid().ToString("N")
-    );
+    internal const string SigningKey = "MiniBank-test-signing-key-at-least-32-bytes";
+    private readonly PostgresTestDatabase _database = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        Directory.CreateDirectory(_databaseDirectory);
+        _database.Create();
         builder.UseEnvironment(environment);
-        builder.UseSetting(
-            "ConnectionStrings:Sqlite",
-            $"Data Source={Path.Combine(_databaseDirectory, "test.db")};Pooling=False;Foreign Keys=True"
-        );
+        builder.UseSetting("ConnectionStrings:DbConnection", _database.ConnectionString);
+        builder.UseSetting("Jwt:Key", SigningKey);
         builder.ConfigureLogging(logging => logging.ClearProviders());
     }
 
@@ -48,9 +43,6 @@ public sealed class MiniBankApiFactory(string environment = "Testing")
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
-        if (Directory.Exists(_databaseDirectory))
-        {
-            Directory.Delete(_databaseDirectory, recursive: true);
-        }
+        await _database.DisposeAsync();
     }
 }

@@ -14,12 +14,15 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder
             .Property(customer => customer.Email)
             .HasMaxLength(254)
-            .UseCollation("NOCASE")
+            .UseCollation(DatabaseCollations.Email)
             .IsRequired();
         builder.HasIndex(customer => customer.Email).IsUnique();
-        builder.Property(customer => customer.PasswordHash).HasMaxLength(512).IsRequired();
         builder.Property(customer => customer.TaxFileNumber).HasMaxLength(10);
         builder.Property(customer => customer.PhoneNumber).HasMaxLength(30).IsRequired();
         builder.Property(customer => customer.CreatedAt).HasUtcConversion();
+        builder
+            .HasOne(customer => customer.User)
+            .WithOne(user => user.Customer)
+            .HasForeignKey<Customer>(customer => customer.UserId);
     }
 }

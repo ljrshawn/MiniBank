@@ -1,33 +1,26 @@
-using Microsoft.AspNetCore.Identity;
 using MiniBank.Api.Data;
-using MiniBank.Api.Entities;
-using MiniBank.Api.Features.Accounts;
-using MiniBank.Api.Features.Customers;
-using MiniBank.Api.Features.Transfers;
+using MiniBank.Api.Features.Auth;
+using MiniBank.Api.Infrastructure;
 using MiniBank.Api.Infrastructure.Http;
 
 var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
-var usePostgres = args.Contains("--pgsql", StringComparer.Ordinal);
 
 var builder = WebApplication.CreateBuilder(
-    args.Where(argument => argument is not "--migrate-database" and not "--pgsql").ToArray()
+    args.Where(argument => argument is not "--migrate-database").ToArray()
 );
 
+builder.Services.AddAppDb(builder.Configuration);
+builder.Services.AddAuthServices(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddApiHttp();
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
-builder.Services.AddScoped<CustomerService>();
-builder.Services.AddScoped<AccountService>();
-builder.Services.AddScoped<TransferService>();
-builder.Services.AddAppDb(builder.Configuration, usePostgres);
+builder.Services.AddApiServices();
 
 var app = builder.Build();
 
 if (migrateDatabase)
 {
     await app.MigrateDatabaseAsync();
-    app.Logger.LogInformation("Database migrations and credential upgrade completed.");
+    app.Logger.LogInformation("Database migrations completed.");
     await app.DisposeAsync();
     return;
 }
@@ -42,10 +35,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var api = app.MapGroup("/api");
-api.MapCustomerEndpoints();
-api.MapAccountEndpoints();
-api.MapTransferEndpoints();
+app.MapApiEndpoints();
 
 await app.RunAsync();
 

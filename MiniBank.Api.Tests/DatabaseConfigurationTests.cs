@@ -9,68 +9,47 @@ namespace MiniBank.Api.Tests;
 
 public sealed class DatabaseConfigurationTests
 {
-    [Theory]
-    [InlineData(false, "Sqlite")]
-    [InlineData(true, "Pgsql")]
-    public void Missing_selected_connection_string_identifies_the_setting(
-        bool usePostgres,
-        string connectionName
-    )
+    [Fact]
+    public void Missing_connection_string_identifies_the_setting()
     {
         var configuration = new ConfigurationBuilder().Build();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            new ServiceCollection().AddAppDb(configuration, usePostgres)
+            new ServiceCollection().AddAppDb(configuration)
         );
 
-        Assert.Contains($"ConnectionStrings:{connectionName}", exception.Message);
+        Assert.Contains("ConnectionStrings:DbConnection", exception.Message);
     }
 
-    [Theory]
-    [InlineData(false, "Microsoft.EntityFrameworkCore.Sqlite", "TEXT", "NOCASE")]
-    [InlineData(true, "Npgsql.EntityFrameworkCore.PostgreSQL", "uuid", "minibank_email_nocase")]
-    public void Selected_provider_has_its_own_current_model_and_migrations(
-        bool usePostgres,
-        string providerName,
-        string expectedColumnType,
-        string expectedCollation
-    )
+    [Fact]
+    public void Postgres_model_matches_migrations_and_includes_identity_constraints()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Sqlite"] = "Data Source=:memory:",
-                ["ConnectionStrings:Pgsql"] = "Host=localhost;Database=minibank;Username=minibank",
+                ["ConnectionStrings:DbConnection"] = "Host=localhost;Database=minibank;Username=minibank",
             })
             .Build();
         using var services = new ServiceCollection()
             .AddLogging()
-            .AddAppDb(configuration, usePostgres)
+            .AddAppDb(configuration)
             .BuildServiceProvider();
         using var scope = services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        Assert.Equal(providerName, database.Database.ProviderName);
+        Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", database.Database.ProviderName);
         Assert.False(database.Database.HasPendingModelChanges());
         var schema = database.Database.GenerateCreateScript();
-        Assert.Contains(expectedColumnType, schema);
-        Assert.Contains(expectedCollation, schema);
+        Assert.Contains("uuid", schema);
+        Assert.Contains("minibank_email_nocase", schema);
+        Assert.Contains("AspNetUserClaims", schema);
+        Assert.Contains("CREATE UNIQUE INDEX \"EmailIndex\"", schema);
+        Assert.Contains("CREATE UNIQUE INDEX \"UserNameIndex\"", schema);
+        Assert.Contains("CREATE UNIQUE INDEX \"IX_Customers_Email\"", schema);
 
-        var migrations = database.Database.GetMigrations().ToArray();
-        Assert.NotEmpty(migrations);
-        if (usePostgres)
-        {
-            Assert.Same(database, scope.ServiceProvider.GetRequiredService<PostgresAppDbContext>());
-            Assert.Contains(migrations, id => id.EndsWith("_InitialPostgres"));
-            var script = database.GetService<IMigrator>().GenerateScript();
-            Assert.Contains("CREATE COLLATION", script);
-            Assert.DoesNotContain("NOCASE", script);
-            Assert.DoesNotContain("legacy:", script);
-        }
-        else
-        {
-            Assert.Contains("20260905015118_InitialCreate", migrations);
-            Assert.DoesNotContain(migrations, id => id.EndsWith("_InitialPostgres"));
-        }
+        var script = database.GetService<IMigrator>().GenerateScript();
+        Assert.Contains("CREATE COLLATION", script);
+        Assert.DoesNotContain("NOCASE", script);
+        Assert.Contains(database.Database.GetMigrations(), id => id.EndsWith("_ConfigureIdentityStorage"));
     }
 }

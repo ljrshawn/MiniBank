@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using MiniBank.Api.Data;
 using MiniBank.Api.Entities;
@@ -9,8 +7,7 @@ namespace MiniBank.Api.Features.Customers;
 
 public sealed class CustomerService(
     AppDbContext dbContext,
-    IPasswordHasher<Customer> passwordHasher,
-    TimeProvider timeProvider
+    CustomerRegistrationService registrationService
 )
 {
     public Task<List<CustomerResponse>> GetCustomersAsync(
@@ -42,27 +39,12 @@ public sealed class CustomerService(
         CancellationToken cancellationToken
     )
     {
-        var email = request.Email.Trim();
-        if (await EmailExistsAsync(email, null, cancellationToken))
-        {
-            return new(CustomerWriteStatus.DuplicateEmail);
-        }
-
-        var customer = new Customer
-        {
-            Id = Guid.CreateVersion7(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            Email = email,
-            TaxFileNumber = NormalizeOptionalValue(request.TaxFileNumber),
-            PhoneNumber = request.PhoneNumber.Trim(),
-            CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
-        };
-
-        customer.PasswordHash = passwordHasher.HashPassword(customer, request.Password);
-        dbContext.Customers.Add(customer);
-
-        return await SaveCustomerAsync(customer, cancellationToken);
+        var result = await registrationService.RegisterAsync(request, cancellationToken);
+        return new(
+            result.Status,
+            result.Customer is null ? null : CustomerResponse.FromEntity(result.Customer),
+            result.Errors
+        );
     }
 
     public async Task<CustomerWriteResult> UpdateCustomerAsync(
@@ -106,17 +88,11 @@ public sealed class CustomerService(
 
             return affectedRows == 0 ? CustomerDeleteResult.NotFound : CustomerDeleteResult.Deleted;
         }
-        catch (SqliteException exception)
-            when (exception.SqliteExtendedErrorCode == 1811
-                || exception.SqliteExtendedErrorCode == 787
-            )
-        {
-            // SQLite reports RESTRICT as a trigger constraint (1811), or a FK constraint (787).
-            return CustomerDeleteResult.HasAccounts;
-        }
         catch (PostgresException exception)
-            when (exception.SqlState is PostgresErrorCodes.ForeignKeyViolation
-                or PostgresErrorCodes.RestrictViolation)
+            when (exception.SqlState
+                    is PostgresErrorCodes.ForeignKeyViolation
+                        or PostgresErrorCodes.RestrictViolation
+            )
         {
             return CustomerDeleteResult.HasAccounts;
         }
@@ -149,14 +125,12 @@ public sealed class CustomerService(
             return new(CustomerWriteStatus.NotFound);
         }
         catch (DbUpdateException exception)
-            when ((exception.InnerException
-                    is SqliteException { SqliteExtendedErrorCode: 2067 } sqlite
-                && sqlite.Message.Contains("Customers.Email", StringComparison.Ordinal)
-                ) || exception.InnerException is PostgresException
-                {
-                    SqlState: PostgresErrorCodes.UniqueViolation,
-                    ConstraintName: "IX_Customers_Email",
-                }
+            when (exception.InnerException
+                    is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_Customers_Email",
+            }
             )
         {
             // The unique index also protects concurrent requests that passed the earlier check.

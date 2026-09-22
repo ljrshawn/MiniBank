@@ -12,8 +12,6 @@ public sealed class Customer
 
     public string Email { get; set; } = null!;
 
-    public string PasswordHash { get; set; } = null!;
-
     public string? TaxFileNumber { get; set; }
 
     public string PhoneNumber { get; set; } = null!;
@@ -23,4 +21,8 @@ public sealed class Customer
     public DateTime CreatedAt { get; set; }
 
     public List<Account> Accounts { get; set; } = [];
+
+    public string UserId { get; set; } = null!;
+
+    public ApplicationUser User { get; set; } = null!;
 }

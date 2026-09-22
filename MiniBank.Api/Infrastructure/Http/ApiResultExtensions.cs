@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using MiniBank.Api.Features.Accounts;
+using MiniBank.Api.Features.Auth;
 using MiniBank.Api.Features.Customers;
 using MiniBank.Api.Features.Transfers;
 
@@ -8,16 +9,25 @@ namespace MiniBank.Api.Infrastructure.Http;
 // Services return business outcomes. This HTTP layer decides how to expose failures.
 internal static class ApiResultExtensions
 {
+    internal static Results<Ok<AuthResponse>, ValidationProblem, ProblemHttpResult> ToHttpResult(
+        this AuthResult result
+    ) => result.Status switch
+    {
+        AuthResultStatus.Success => TypedResults.Ok(RequireValue(result.Response)),
+        AuthResultStatus.DuplicateEmail => ApiProblems.DuplicateEmail.ToResult(),
+        AuthResultStatus.InvalidRequest => TypedResults.ValidationProblem(RequireValue(result.Errors)),
+        _ => throw new InvalidOperationException($"Unknown authentication status: {result.Status}."),
+    };
+
     internal static Results<TSuccess, ProblemHttpResult> ToHttpResult<TValue, TSuccess>(
         this TValue? value,
         ApiProblem whenMissing,
         Func<TValue, TSuccess> onSuccess
     )
         where TValue : class
-        where TSuccess : IResult =>
-        value is null ? whenMissing.ToResult() : onSuccess(value);
+        where TSuccess : IResult => value is null ? whenMissing.ToResult() : onSuccess(value);
 
-    internal static Results<TSuccess, ProblemHttpResult> ToHttpResult<TSuccess>(
+    internal static Results<TSuccess, ValidationProblem, ProblemHttpResult> ToHttpResult<TSuccess>(
         this CustomerWriteResult result,
         Func<CustomerResponse, TSuccess> onSuccess
     )
@@ -27,6 +37,7 @@ internal static class ApiResultExtensions
             CustomerWriteStatus.Success => onSuccess(RequireValue(result.Customer)),
             CustomerWriteStatus.NotFound => ApiProblems.CustomerNotFound.ToResult(),
             CustomerWriteStatus.DuplicateEmail => ApiProblems.DuplicateEmail.ToResult(),
+            CustomerWriteStatus.InvalidRequest => TypedResults.ValidationProblem(RequireValue(result.Errors)),
             _ => throw new InvalidOperationException(
                 $"Unknown customer write status: {result.Status}."
             ),
@@ -53,13 +64,20 @@ internal static class ApiResultExtensions
         {
             TransactionStatus.Success => onSuccess(RequireValue(result.Transaction)),
             TransactionStatus.NotFound => ApiProblems.AccountNotFound(accountId).ToResult(),
-            TransactionStatus.InvalidRequest =>
-                (ApiProblems.InvalidTransaction with { Detail = result.ErrorMessage }).ToResult(),
-            TransactionStatus.InsufficientFunds => ApiProblems.WithdrawalInsufficientFunds.ToResult(),
+            TransactionStatus.InvalidRequest => (
+                ApiProblems.InvalidTransaction with
+                {
+                    Detail = result.ErrorMessage,
+                }
+            ).ToResult(),
+            TransactionStatus.InsufficientFunds =>
+                ApiProblems.WithdrawalInsufficientFunds.ToResult(),
             TransactionStatus.BalanceLimitExceeded =>
                 ApiProblems.DepositBalanceLimitExceeded.ToResult(),
             TransactionStatus.Conflict => ApiProblems.TransactionConflict.ToResult(),
-            _ => throw new InvalidOperationException($"Unknown transaction status: {result.Status}."),
+            _ => throw new InvalidOperationException(
+                $"Unknown transaction status: {result.Status}."
+            ),
         };
 
     internal static Results<TSuccess, ProblemHttpResult> ToHttpResult<TSuccess>(
@@ -70,11 +88,20 @@ internal static class ApiResultExtensions
         result.Status switch
         {
             TransferResultStatus.Success => onSuccess(RequireValue(result.Transfer)),
-            TransferResultStatus.NotFound =>
-                (ApiProblems.AccountNotFound() with { Detail = result.ErrorMessage }).ToResult(),
-            TransferResultStatus.InvalidRequest =>
-                (ApiProblems.InvalidTransfer with { Detail = result.ErrorMessage }).ToResult(),
-            TransferResultStatus.InsufficientFunds => ApiProblems.TransferInsufficientFunds.ToResult(),
+            TransferResultStatus.NotFound => (
+                ApiProblems.AccountNotFound() with
+                {
+                    Detail = result.ErrorMessage,
+                }
+            ).ToResult(),
+            TransferResultStatus.InvalidRequest => (
+                ApiProblems.InvalidTransfer with
+                {
+                    Detail = result.ErrorMessage,
+                }
+            ).ToResult(),
+            TransferResultStatus.InsufficientFunds =>
+                ApiProblems.TransferInsufficientFunds.ToResult(),
             TransferResultStatus.BalanceLimitExceeded =>
                 ApiProblems.TransferBalanceLimitExceeded.ToResult(),
             TransferResultStatus.Conflict => ApiProblems.TransferConflict.ToResult(),

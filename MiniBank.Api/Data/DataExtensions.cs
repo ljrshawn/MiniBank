@@ -6,40 +6,27 @@ public static class DataExtensions
 {
     public static IServiceCollection AddAppDb(
         this IServiceCollection services,
-        IConfiguration configuration,
-        bool usePostgres = false
+        IConfiguration configuration
     )
     {
-        var connectionName = usePostgres ? "Pgsql" : "Sqlite";
-        var connectionString = configuration.GetConnectionString(connectionName);
+        var POSTGRES_DB = configuration["POSTGRES_DB"];
+        var POSTGRES_USER = configuration["POSTGRES_USER"];
+        var POSTGRES_PASSWORD = configuration["POSTGRES_PASSWORD"];
+        var POSTGRES_PORT = configuration["POSTGRES_PORT"];
+
+        var connectionString =
+            $"Host=localhost;Port={POSTGRES_PORT};Database={POSTGRES_DB};Username={POSTGRES_USER};Password={POSTGRES_PASSWORD}";
+
+        Console.WriteLine(connectionString);
+
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"Connection string 'ConnectionStrings:{connectionName}' is required."
+                "Connection string 'ConnectionStrings:DbConnection' is required."
             );
         }
 
-        if (usePostgres)
-        {
-            services.AddDbContext<PostgresAppDbContext>(options =>
-                options.UseNpgsql(connectionString)
-            );
-            services.AddScoped<AppDbContext>(provider =>
-                provider.GetRequiredService<PostgresAppDbContext>()
-            );
-            return services;
-        }
-
-        services.AddDbContext<AppDbContext>(options =>
-            options
-                .UseSqlite(connectionString)
-                .UseSeeding((context, _) => LegacyPasswordUpgrade.Run(context))
-                .UseAsyncSeeding(
-                    (context, _, cancellationToken) =>
-                        LegacyPasswordUpgrade.RunAsync(context, cancellationToken)
-                )
-        );
-
+        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
         return services;
     }
 
